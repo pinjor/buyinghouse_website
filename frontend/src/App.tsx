@@ -1,6 +1,8 @@
 import { Routes, Route, Link } from 'react-router-dom';
 import Home from './pages/Home';
 import Login from './pages/Login';
+import CategoryPage from './pages/CategoryPage';
+import ProductDetail from './pages/ProductDetail';
 import { useAuthStore } from './store/authStore';
 
 function Layout({ children }: { children: React.ReactNode }) {
@@ -14,9 +16,9 @@ function Layout({ children }: { children: React.ReactNode }) {
           </span>
         </Link>
         <nav className="flex gap-6 text-sm font-medium text-navy-600 items-center">
-          <Link to="/shirts">Shirts</Link>
-          <Link to="/suits">Suits</Link>
-          <Link to="/jackets">Jackets</Link>
+          <Link to="/shirt">Shirts</Link>
+          <Link to="/suit">Suits</Link>
+          <Link to="/jacket">Jackets</Link>
           <AccountLink />
         </nav>
       </header>
@@ -36,6 +38,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/:category" element={<CategoryPage />} />
+        <Route path="/products/:id" element={<ProductDetail />} />
       </Routes>
     </Layout>
   );
