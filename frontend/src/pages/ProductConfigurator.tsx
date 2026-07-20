@@ -1,6 +1,8 @@
-import { useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { getProduct, computePrice } from '../api/catalogApi';
+import { addCartItem } from '../api/orderApi';
+import { useAuthStore } from '../store/authStore';
 import { useConfiguratorStore } from '../store/configuratorStore';
 import FabricPicker from '../components/configurator/FabricPicker';
 import StylePicker from '../components/configurator/StylePicker';
@@ -10,13 +12,18 @@ import PriceSummary from '../components/configurator/PriceSummary';
 
 export default function ProductConfigurator() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const product = useConfiguratorStore((s) => s.product);
   const fabricId = useConfiguratorStore((s) => s.fabricId);
   const styleSelections = useConfiguratorStore((s) => s.styleSelections);
+  const measurements = useConfiguratorStore((s) => s.measurements);
   const loadProduct = useConfiguratorStore((s) => s.loadProduct);
   const setFabric = useConfiguratorStore((s) => s.setFabric);
   const setStyleOption = useConfiguratorStore((s) => s.setStyleOption);
   const setPrice = useConfiguratorStore((s) => s.setPrice);
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken));
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -30,6 +37,29 @@ export default function ProductConfigurator() {
 
   if (!product || product.id !== id) return <p className="px-8 py-12 text-navy-400">Loading…</p>;
 
+  async function handleAddToCart() {
+    if (!product || !fabricId) return;
+    if (!isAuthed) {
+      navigate('/login');
+      return;
+    }
+    setAdding(true);
+    setAddError(null);
+    try {
+      await addCartItem({
+        productId: product.id,
+        fabricId,
+        styleOptionIds: Object.values(styleSelections),
+        measurements,
+      });
+      navigate('/cart');
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Failed to add to cart');
+    } finally {
+      setAdding(false);
+    }
+  }
+
   return (
     <section className="px-8 py-12">
       <h1 className="font-display text-3xl text-navy-800 mb-8">{product.name}</h1>
@@ -40,6 +70,14 @@ export default function ProductConfigurator() {
           <StylePicker groups={product.styleOptions} selections={styleSelections} onSelect={setStyleOption} />
           <MeasurementForm />
           <PriceSummary />
+          {addError && <p className="text-red-600 text-sm mt-3">{addError}</p>}
+          <button
+            onClick={handleAddToCart}
+            disabled={adding}
+            className="w-full mt-4 bg-navy-800 text-white rounded py-2.5 hover:bg-navy-700 disabled:opacity-50"
+          >
+            {adding ? 'Adding…' : 'Add to Cart'}
+          </button>
         </div>
       </div>
     </section>

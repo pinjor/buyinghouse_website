@@ -4,6 +4,8 @@ import Login from './pages/Login';
 import CategoryPage from './pages/CategoryPage';
 import ProductDetail from './pages/ProductDetail';
 import ProductConfigurator from './pages/ProductConfigurator';
+import Cart from './pages/Cart';
+import OrderConfirmation from './pages/OrderConfirmation';
 import { useAuthStore } from './store/authStore';
 
 function Layout({ children }: { children: React.ReactNode }) {
@@ -20,6 +22,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           <Link to="/shirt">Shirts</Link>
           <Link to="/suit">Suits</Link>
           <Link to="/jacket">Jackets</Link>
+          <Link to="/cart">Cart</Link>
           <AccountLink />
         </nav>
       </header>
@@ -42,6 +45,8 @@ export default function App() {
         <Route path="/:category" element={<CategoryPage />} />
         <Route path="/products/:id" element={<ProductDetail />} />
         <Route path="/configure/:id" element={<ProductConfigurator />} />
+        <Route path="/cart" element={<Cart />} />
+        <Route path="/orders/:id" element={<OrderConfirmation />} />
       </Routes>
     </Layout>
   );
