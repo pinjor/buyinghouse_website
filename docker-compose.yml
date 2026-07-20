@@ -48,6 +48,17 @@ services:
       RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on: [ postgres, rabbitmq, catalog-service ]
 
+  notification-service:
+    build: ./services/notification-service
+    environment:
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-orders@novaterra.apparel}
+    depends_on: [ rabbitmq ]
+
   gateway:
     build: ./services/gateway
     ports: [ "8080:8080" ]

@@ -13,8 +13,11 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
 function requireUser(req: Request, res: Response, next: NextFunction) {
   const userId = req.headers['x-user-id'];
+  const userEmail = req.headers['x-user-email'];
   if (typeof userId !== 'string') return res.status(401).json({ error: 'missing user context' });
-  (req as Request & { userId: string }).userId = userId;
+  (req as Request & { userId: string; userEmail?: string }).userId = userId;
+  (req as Request & { userId: string; userEmail?: string }).userEmail =
+    typeof userEmail === 'string' ? userEmail : undefined;
   next();
 }
 
@@ -100,7 +103,7 @@ app.delete('/cart/items/:itemId', requireUser, async (req, res) => {
 });
 
 app.post('/checkout', requireUser, async (req, res) => {
-  const { userId } = req as Request & { userId: string };
+  const { userId, userEmail } = req as Request & { userId: string; userEmail?: string };
   const cart = await loadCart(userId);
   if (cart.items.length === 0) return res.status(400).json({ error: 'cart is empty' });
 
@@ -136,6 +139,7 @@ app.post('/checkout', requireUser, async (req, res) => {
     publishOrderEvent('order.placed', {
       orderId: order.id,
       userId,
+      userEmail: userEmail ?? null,
       total: Number(order.total),
       itemCount: cart.items.length,
     });
