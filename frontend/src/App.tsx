@@ -3,6 +3,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import CategoryPage from './pages/CategoryPage';
 import ProductDetail from './pages/ProductDetail';
+import ProductConfigurator from './pages/ProductConfigurator';
 import { useAuthStore } from './store/authStore';
 
 function Layout({ children }: { children: React.ReactNode }) {
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/:category" element={<CategoryPage />} />
         <Route path="/products/:id" element={<ProductDetail />} />
+        <Route path="/configure/:id" element={<ProductConfigurator />} />
       </Routes>
     </Layout>
   );

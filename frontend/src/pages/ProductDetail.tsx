@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { getProduct, ProductDetail as ProductDetailType } from '../api/catalogApi';
 
 export default function ProductDetail() {
@@ -21,7 +21,13 @@ export default function ProductDetail() {
   return (
     <section className="px-8 py-12 max-w-3xl">
       <h1 className="font-display text-3xl text-navy-800 mb-2">{product.name}</h1>
-      <p className="text-gold-600 font-medium mb-8">from ${product.basePrice.toFixed(2)}</p>
+      <p className="text-gold-600 font-medium mb-4">from ${product.basePrice.toFixed(2)}</p>
+      <Link
+        to={`/configure/${product.id}`}
+        className="inline-block bg-navy-800 text-white rounded px-5 py-2 mb-8 hover:bg-navy-700"
+      >
+        Customize
+      </Link>
 
       <h2 className="font-display text-lg text-navy-800 mb-3">Fabrics</h2>
       <ul className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
