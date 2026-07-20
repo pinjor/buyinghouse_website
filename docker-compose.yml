@@ -8,7 +8,7 @@ services:
     volumes:
       - "./infra/init-db:/docker-entrypoint-initdb.d"
       - "pgdata:/var/lib/postgresql/data"
-    ports: [ "5432:5432" ]
+    ports: [ "5434:5432" ]
 
   redis:
     image: redis:7
@@ -26,14 +26,24 @@ services:
     image: rabbitmq:3-management
     ports: [ "5672:5672", "15672:15672" ]
 
+  auth-service:
+    build: ./services/auth-service
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/auth
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-access-secret}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret}
+    depends_on: [ postgres ]
+
   gateway:
     build: ./services/gateway
     ports: [ "8080:8080" ]
-    depends_on: [ postgres ]
+    environment:
+      AUTH_SERVICE_URL: http://auth-service:4001
+    depends_on: [ postgres, auth-service ]
 
   frontend:
     build: ./frontend
-    ports: [ "3000:80" ]
+    ports: [ "3002:80" ]
     depends_on: [ gateway ]
 
 volumes:

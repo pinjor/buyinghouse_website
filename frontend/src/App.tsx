@@ -1,5 +1,7 @@
 import { Routes, Route, Link } from 'react-router-dom';
 import Home from './pages/Home';
+import Login from './pages/Login';
+import { useAuthStore } from './store/authStore';
 
 function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -11,10 +13,11 @@ function Layout({ children }: { children: React.ReactNode }) {
             NOVATERRA <span className="text-gold-500">APPAREL</span>
           </span>
         </Link>
-        <nav className="flex gap-6 text-sm font-medium text-navy-600">
+        <nav className="flex gap-6 text-sm font-medium text-navy-600 items-center">
           <Link to="/shirts">Shirts</Link>
           <Link to="/suits">Suits</Link>
           <Link to="/jackets">Jackets</Link>
+          <AccountLink />
         </nav>
       </header>
       <main className="flex-1">{children}</main>
@@ -22,11 +25,17 @@ function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
+function AccountLink() {
+  const user = useAuthStore((s) => s.user);
+  return <Link to="/login">{user ? user.email : 'Sign in'}</Link>;
+}
+
 export default function App() {
   return (
     <Layout>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
       </Routes>
     </Layout>
   );
