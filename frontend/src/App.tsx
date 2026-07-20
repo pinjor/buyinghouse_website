@@ -21,10 +21,17 @@ function Layout({ children }: { children: React.ReactNode }) {
             NOVATERRA <span className="text-gold-500">APPAREL</span>
           </span>
         </Link>
-        <nav className="flex gap-6 text-sm font-medium text-navy-600 items-center">
+        <nav className="flex flex-wrap gap-x-5 gap-y-1 text-sm font-medium text-navy-600 items-center max-w-2xl justify-end">
           <Link to="/shirt">Shirts</Link>
           <Link to="/suit">Suits</Link>
           <Link to="/jacket">Jackets</Link>
+          <Link to="/vest">Vests</Link>
+          <Link to="/pants">Pants</Link>
+          <Link to="/jeans">Jeans</Link>
+          <Link to="/tuxedo">Tuxedos</Link>
+          <Link to="/overcoat">Overcoats</Link>
+          <Link to="/tie">Ties</Link>
+          <Link to="/womens">Women's</Link>
           <Link to="/cart">Cart</Link>
           <AccountLink />
         </nav>
