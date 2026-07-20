@@ -6,6 +6,9 @@ import ProductDetail from './pages/ProductDetail';
 import ProductConfigurator from './pages/ProductConfigurator';
 import Cart from './pages/Cart';
 import OrderConfirmation from './pages/OrderConfirmation';
+import AdminOrders from './pages/admin/AdminOrders';
+import AdminProducts from './pages/admin/AdminProducts';
+import RequireAdmin from './components/layout/RequireAdmin';
 import { useAuthStore } from './store/authStore';
 
 function Layout({ children }: { children: React.ReactNode }) {
@@ -33,7 +36,17 @@ function Layout({ children }: { children: React.ReactNode }) {
 
 function AccountLink() {
   const user = useAuthStore((s) => s.user);
-  return <Link to="/login">{user ? user.email : 'Sign in'}</Link>;
+  return (
+    <>
+      {user?.role === 'admin' && (
+        <>
+          <Link to="/admin/orders">Admin: Orders</Link>
+          <Link to="/admin/products">Admin: Products</Link>
+        </>
+      )}
+      <Link to="/login">{user ? user.email : 'Sign in'}</Link>
+    </>
+  );
 }
 
 export default function App() {
@@ -47,6 +60,10 @@ export default function App() {
         <Route path="/configure/:id" element={<ProductConfigurator />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/orders/:id" element={<OrderConfirmation />} />
+        <Route element={<RequireAdmin />}>
+          <Route path="/admin/orders" element={<AdminOrders />} />
+          <Route path="/admin/products" element={<AdminProducts />} />
+        </Route>
       </Routes>
     </Layout>
   );

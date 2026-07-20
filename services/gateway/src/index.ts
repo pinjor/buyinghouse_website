@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { createProxyMiddleware } from 'http-proxy-middleware';
-import { requireAuth } from './authMiddleware.js';
+import { requireAuth, requireAdmin } from './authMiddleware.js';
 
 const app = express();
 app.use(cors());
@@ -12,12 +12,26 @@ const ORDER_URL = process.env.ORDER_SERVICE_URL ?? 'http://order-service:4003';
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
-app.use('/api/auth', createProxyMiddleware({ target: AUTH_URL, changeOrigin: true, pathRewrite: { '^/api/auth': '' } }));
-app.use('/api/catalog', createProxyMiddleware({ target: CATALOG_URL, changeOrigin: true, pathRewrite: { '^/api/catalog': '' } }));
+// Express strips the app.use() mount path from req.url before the proxy sees it,
+// so pathRewrite only needs to handle what's left *after* the mount prefix.
+app.use('/api/auth', createProxyMiddleware({ target: AUTH_URL, changeOrigin: true }));
+app.use('/api/catalog', createProxyMiddleware({ target: CATALOG_URL, changeOrigin: true }));
+app.use(
+  '/api/admin/catalog',
+  requireAuth,
+  requireAdmin,
+  createProxyMiddleware({ target: CATALOG_URL, changeOrigin: true, pathRewrite: { '^/': '/admin/' } }),
+);
+app.use(
+  '/api/admin/orders',
+  requireAuth,
+  requireAdmin,
+  createProxyMiddleware({ target: ORDER_URL, changeOrigin: true, pathRewrite: { '^/': '/admin/' } }),
+);
 app.use(
   '/api/orders',
   requireAuth,
-  createProxyMiddleware({ target: ORDER_URL, changeOrigin: true, pathRewrite: { '^/api/orders': '' } }),
+  createProxyMiddleware({ target: ORDER_URL, changeOrigin: true }),
 );
 
 const PORT = process.env.PORT ?? 8080;

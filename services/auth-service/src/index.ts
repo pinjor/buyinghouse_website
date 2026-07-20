@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { pool, migrate } from './db.js';
+import { pool, migrate, seedAdmin } from './db.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from './tokens.js';
 
 const app = express();
@@ -72,6 +72,7 @@ app.post('/refresh', (req, res) => {
 
 const PORT = process.env.PORT ?? 4001;
 migrate()
+  .then(seedAdmin)
   .then(() => app.listen(PORT, () => console.log(`auth-service listening on ${PORT}`)))
   .catch((err) => {
     console.error('failed to migrate auth-service db', err);

@@ -23,3 +23,8 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     res.status(401).json({ error: 'invalid or expired access token' });
   }
 }
+
+export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (req.headers['x-user-role'] !== 'admin') return res.status(403).json({ error: 'admin access required' });
+  next();
+}

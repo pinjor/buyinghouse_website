@@ -111,8 +111,8 @@ app.post('/checkout', requireUser, async (req, res) => {
   try {
     await client.query('BEGIN');
     const orderRes = await client.query(
-      `INSERT INTO orders (user_id, status, total) VALUES ($1, 'placed', $2) RETURNING id, status, total, created_at`,
-      [userId, cart.total],
+      `INSERT INTO orders (user_id, user_email, status, total) VALUES ($1, $2, 'placed', $3) RETURNING id, status, total, created_at`,
+      [userId, userEmail ?? null, cart.total],
     );
     const order = orderRes.rows[0];
 
@@ -158,6 +158,63 @@ app.post('/checkout', requireUser, async (req, res) => {
   } finally {
     client.release();
   }
+});
+
+function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (req.headers['x-user-role'] !== 'admin') return res.status(403).json({ error: 'admin access required' });
+  next();
+}
+
+const ORDER_STATUS_SEQUENCE = ['placed', 'in_production', 'shipped', 'delivered'] as const;
+
+app.get('/admin/orders', requireAdmin, async (_req, res) => {
+  const result = await pool.query(
+    'SELECT id, user_id, user_email, status, total, created_at FROM orders ORDER BY created_at DESC',
+  );
+  res.json(
+    result.rows.map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      userEmail: r.user_email,
+      status: r.status,
+      total: Number(r.total),
+      createdAt: r.created_at,
+    })),
+  );
+});
+
+const statusUpdateSchema = z.object({
+  status: z.enum(ORDER_STATUS_SEQUENCE),
+});
+
+app.patch('/admin/orders/:id/status', requireAdmin, async (req, res) => {
+  const parsed = statusUpdateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const orderRes = await pool.query('SELECT id, user_id, user_email, status, total FROM orders WHERE id = $1', [
+    req.params.id,
+  ]);
+  if (!orderRes.rowCount) return res.status(404).json({ error: 'order not found' });
+  const order = orderRes.rows[0];
+
+  const currentIndex = ORDER_STATUS_SEQUENCE.indexOf(order.status);
+  const nextIndex = ORDER_STATUS_SEQUENCE.indexOf(parsed.data.status);
+  if (nextIndex !== currentIndex + 1) {
+    return res.status(400).json({
+      error: `invalid transition from "${order.status}" to "${parsed.data.status}" (must advance one step at a time)`,
+    });
+  }
+
+  await pool.query('UPDATE orders SET status = $1 WHERE id = $2', [parsed.data.status, order.id]);
+
+  publishOrderEvent(`order.${parsed.data.status}`, {
+    orderId: order.id,
+    userId: order.user_id,
+    userEmail: order.user_email,
+    total: Number(order.total),
+  });
+
+  res.json({ id: order.id, status: parsed.data.status });
 });
 
 app.get('/orders', requireUser, async (req, res) => {

@@ -32,6 +32,8 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/auth
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-access-secret}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     depends_on: [ postgres ]
 
   catalog-service:

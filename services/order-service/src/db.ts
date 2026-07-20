@@ -30,11 +30,14 @@ export async function migrate() {
     CREATE TABLE IF NOT EXISTS orders (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id UUID NOT NULL,
+      user_email TEXT,
       status TEXT NOT NULL DEFAULT 'placed'
         CHECK (status IN ('placed', 'in_production', 'shipped', 'delivered')),
       total NUMERIC(10,2) NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_email TEXT;
 
     CREATE TABLE IF NOT EXISTS order_items (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
