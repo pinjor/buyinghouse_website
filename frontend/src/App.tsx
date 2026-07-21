@@ -20,7 +20,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       {/* Top Announcement & Utilities Bar */}
       <div className="bg-[#070D16] border-b border-itailor-cardBorder/40 px-6 py-1.5 flex justify-between items-center text-xs text-itailor-cream/70">
         <div className="flex items-center gap-4">
-          <span className="text-itailor-gold font-medium">NOVATERRA LUXURY CUSTOM TAILORING</span>
+          <span className="text-itailor-gold font-medium">NOVATERRA LUXURY CUSTOM APPAREL</span>
           <span className="hidden sm:inline text-itailor-cream/40">•</span>
           <span className="hidden sm:inline">Crafted to your exact measurements</span>
         </div>
@@ -40,11 +40,12 @@ function Layout({ children }: { children: React.ReactNode }) {
           <img src="/logo.jpeg" alt="Novaterra Apparel" className="h-9 w-9 rounded-full ring-2 ring-itailor-gold/50 group-hover:ring-itailor-gold transition-all" />
           <div className="flex flex-col">
             <span className="font-display text-lg tracking-widest text-itailor-cream font-bold leading-none">
-              NOVATERRA <span className="text-itailor-gold font-normal">TAILOR</span>
+              NOVATERRA <span className="text-itailor-gold font-normal">APPAREL</span>
             </span>
             <span className="text-[10px] tracking-wider text-itailor-gold/70 uppercase mt-0.5">Bespoke Custom Apparel</span>
           </div>
         </Link>
+
 
         {/* Categories Navbar */}
         <nav className="hidden lg:flex items-center gap-1 text-xs uppercase font-semibold tracking-wider text-itailor-cream/80">

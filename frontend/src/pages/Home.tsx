@@ -2,11 +2,11 @@ import { Link } from 'react-router-dom';
 
 export default function Home() {
   const categories = [
-    { title: 'Tailored Suits & Tuxedos', category: 'suit', price: 'from $239', desc: 'Bespoke 2-Piece & 3-Piece Suits with 900+ Wool Swatches', bg: 'bg-[#121D2D]' },
+    { title: 'Bespoke Suits & Tuxedos', category: 'suit', price: 'from $239', desc: 'Bespoke 2-Piece & 3-Piece Suits with 900+ Wool Swatches', bg: 'bg-[#121D2D]' },
     { title: 'Bespoke Shirts & Woven Tops', category: 'shirt', price: 'from $60', desc: 'Egyptian Cotton, Linen & Oxford Custom Dress Shirts', bg: 'bg-[#142032]' },
     { title: 'Jackets & Blazers', category: 'jacket', price: 'from $280', desc: 'Handcrafted Sport Coats, Tweeds & Cashmere Blazers', bg: 'bg-[#111A28]' },
     { title: 'Knits & Sweaters', category: 'knit', price: 'from $75', desc: 'Pique Polo Shirts, Heavyweight Knitwear & Sweaters', bg: 'bg-[#152338]' },
-    { title: 'Trousers & Custom Denim', category: 'pants', price: 'from $95', desc: 'Tailored Wool Trousers, Chinos & Selvedge Raw Denim', bg: 'bg-[#0E1725]' },
+    { title: 'Trousers & Custom Denim', category: 'pants', price: 'from $95', desc: 'Wool Trousers, Chinos & Selvedge Raw Denim', bg: 'bg-[#0E1725]' },
     { title: 'Vests & Waistcoats', category: 'vest', price: 'from $90', desc: 'Custom Suit Vests, Silk Waistcoats & Tuxedo Accents', bg: 'bg-[#16243A]' },
   ];
 
@@ -17,8 +17,9 @@ export default function Home() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-itailor-gold/10 via-transparent to-transparent pointer-events-none" />
 
         <span className="uppercase tracking-[0.3em] text-itailor-gold text-xs font-bold mb-4 bg-itailor-gold/10 border border-itailor-gold/30 px-4 py-1.5 rounded-full shadow-lg">
-          Novaterra Bespoke Luxury Tailoring
+          Novaterra Bespoke Custom Apparel
         </span>
+
 
         <h1 className="font-display text-4xl sm:text-6xl font-bold tracking-wide max-w-4xl text-itailor-cream leading-tight mb-6">
           "We Believe Business is Built on Trust — <span className="text-itailor-gold italic">We Will Earn Yours</span>"
