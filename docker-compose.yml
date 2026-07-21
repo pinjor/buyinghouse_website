@@ -40,6 +40,7 @@ services:
     build: ./services/catalog-service
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/catalog
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?set INTERNAL_SERVICE_SECRET in .env — no default is provided}
     depends_on: [ postgres ]
 
   order-service:
@@ -50,6 +51,7 @@ services:
       RABBITMQ_URL: amqp://rabbitmq:5672
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?set INTERNAL_SERVICE_SECRET in .env — no default is provided}
     depends_on: [ postgres, rabbitmq, catalog-service ]
 
   notification-service:
@@ -71,6 +73,7 @@ services:
       CATALOG_SERVICE_URL: http://catalog-service:4002
       ORDER_SERVICE_URL: http://order-service:4003
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET in .env — no default is provided}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?set INTERNAL_SERVICE_SECRET in .env — no default is provided}
     depends_on: [ postgres, auth-service, catalog-service, order-service ]
 
   frontend:

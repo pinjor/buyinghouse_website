@@ -6,6 +6,15 @@ import { connectMessaging, publishOrderEvent } from './messaging.js';
 import { priceProduct, getProduct } from './catalogClient.js';
 import { isStripeConfigured, createPaymentIntent, retrievePaymentIntent, constructWebhookEvent } from './paymentService.js';
 
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    console.error(`missing required env var ${name}`);
+    process.exit(1);
+  }
+  return value;
+}
+
 const app = express();
 app.use(cors());
 
@@ -35,6 +44,20 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (r
 app.use(express.json());
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+
+// Everything below trusts x-user-id / x-user-role headers as already-verified
+// identity — that's only safe if this service is unreachable except through
+// the gateway (which independently verifies the JWT and sets those headers
+// itself). This gate enforces that even when network isolation isn't
+// guaranteed by the hosting setup (e.g. each service getting its own public
+// URL, as with cPanel's Node.js app selector).
+const INTERNAL_SERVICE_SECRET = requireEnv('INTERNAL_SERVICE_SECRET');
+app.use((req, res, next) => {
+  if (req.headers['x-internal-secret'] !== INTERNAL_SERVICE_SECRET) {
+    return res.status(403).json({ error: 'forbidden' });
+  }
+  next();
+});
 
 function requireUser(req: Request, res: Response, next: NextFunction) {
   const userId = req.headers['x-user-id'];

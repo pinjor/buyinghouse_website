@@ -3,9 +3,33 @@ import cors from 'cors';
 import { z } from 'zod';
 import { pool, migrate, seedIfEmpty } from './db.js';
 
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    console.error(`missing required env var ${name}`);
+    process.exit(1);
+  }
+  return value;
+}
+
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+
+// This service trusts x-user-role as already-verified identity from the
+// gateway — only safe if unreachable except through it. Gate everything else
+// with a shared secret so that holds even when network isolation isn't
+// guaranteed (e.g. each service getting its own public URL, as with cPanel's
+// Node.js app selector).
+const INTERNAL_SERVICE_SECRET = requireEnv('INTERNAL_SERVICE_SECRET');
+app.use((req, res, next) => {
+  if (req.headers['x-internal-secret'] !== INTERNAL_SERVICE_SECRET) {
+    return res.status(403).json({ error: 'forbidden' });
+  }
+  next();
+});
 
 // Defense in depth: the gateway is expected to gate /admin/* behind auth +
 // role checks before proxying here, but this service must not rely on that
@@ -14,8 +38,6 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
   if (req.headers['x-user-role'] !== 'admin') return res.status(403).json({ error: 'admin access required' });
   next();
 }
-
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
 app.get('/products', async (req, res) => {
   const category = typeof req.query.category === 'string' ? req.query.category : undefined;
