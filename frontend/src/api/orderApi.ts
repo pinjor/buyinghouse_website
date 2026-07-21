@@ -32,133 +32,49 @@ function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-// Local storage cart state helper
-const LOCAL_CART_KEY = 'novaterra_local_cart';
-
-function getLocalCart(): Cart {
-  try {
-    const raw = localStorage.getItem(LOCAL_CART_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (e) {
-    // ignore
+async function handle<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? `request failed (${res.status})`);
   }
-  return { id: 'local-cart', items: [], total: 0 };
+  return res.json();
 }
 
-function saveLocalCart(cart: Cart): Cart {
-  cart.total = cart.items.reduce((acc, item) => acc + item.unitPrice * item.quantity, 0);
-  localStorage.setItem(LOCAL_CART_KEY, JSON.stringify(cart));
-  return cart;
+export function getCart(): Promise<Cart> {
+  return fetch('/api/orders/cart', { headers: authHeaders() }).then((r) => handle(r));
 }
 
-export async function getCart(): Promise<Cart> {
-  try {
-    const res = await fetch('/api/orders/cart', { headers: authHeaders() });
-    const contentType = res.headers.get('content-type');
-    if (res.ok && contentType?.includes('application/json')) {
-      return res.json();
-    }
-  } catch (err) {
-    // API offline, use local storage cart
-  }
-  return getLocalCart();
-}
-
-export async function addCartItem(item: {
+export function addCartItem(item: {
   productId: string;
   fabricId: string;
   styleOptionIds: string[];
-  measurements: Record<string, string> | any;
+  measurements: { neck: string; chest: string; waist: string; sleeveLength: string };
 }): Promise<Cart> {
-  try {
-    const res = await fetch('/api/orders/cart/items', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify(item),
-    });
-    const contentType = res.headers.get('content-type');
-    if (res.ok && contentType?.includes('application/json')) {
-      return res.json();
-    }
-  } catch (err) {
-    // API offline, use local storage fallback
-  }
-
-  const local = getLocalCart();
-  const newItem: CartItem = {
-    id: `item-${Date.now()}`,
-    productId: item.productId,
-    productName: 'Custom Bespoke Tailored Suit',
-    fabricId: item.fabricId,
-    styleOptionIds: item.styleOptionIds,
-    measurements: item.measurements as Record<string, string>,
-    unitPrice: 239.0,
-    quantity: 1,
-  };
-  local.items.push(newItem);
-  return saveLocalCart(local);
+  return fetch('/api/orders/cart/items', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(item),
+  }).then((r) => handle(r));
 }
 
-export async function removeCartItem(itemId: string): Promise<Cart> {
-  try {
-    const res = await fetch(`/api/orders/cart/items/${itemId}`, {
-      method: 'DELETE',
-      headers: authHeaders(),
-    });
-    const contentType = res.headers.get('content-type');
-    if (res.ok && contentType?.includes('application/json')) {
-      return res.json();
-    }
-  } catch (err) {
-    // API offline
-  }
-
-  const local = getLocalCart();
-  local.items = local.items.filter((i) => i.id !== itemId);
-  return saveLocalCart(local);
+export function removeCartItem(itemId: string): Promise<Cart> {
+  return fetch(`/api/orders/cart/items/${itemId}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  }).then((r) => handle(r));
 }
 
-export async function checkout(paymentMethod: 'stripe' | 'wire' = 'stripe'): Promise<Order> {
-  try {
-    const res = await fetch('/api/orders/checkout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ paymentMethod }),
-    });
-    const contentType = res.headers.get('content-type');
-    if (res.ok && contentType?.includes('application/json')) {
-      return res.json();
-    }
-  } catch (err) {
-    // API offline
-  }
-
-  const local = getLocalCart();
-  const order: Order = {
-    id: `ORD-${Math.floor(100000 + Math.random() * 900000)}`,
-    status: 'CONFIRMED',
-    total: local.total || 239.0,
-    paymentMethod,
-    items: local.items.length > 0 ? local.items : [],
-    createdAt: new Date().toISOString(),
-    clientSecret: 'mock_stripe_client_secret_demo',
-  };
-
-  // Clear local cart on checkout
-  localStorage.removeItem(LOCAL_CART_KEY);
-  return order;
+export function checkout(paymentMethod: 'stripe' | 'wire'): Promise<Order> {
+  return fetch('/api/orders/checkout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ paymentMethod }),
+  }).then((r) => handle(r));
 }
 
-export async function confirmStripePayment(orderId: string): Promise<{ id: string; status: string }> {
-  try {
-    const res = await fetch(`/api/orders/checkout/${orderId}/confirm`, {
-      method: 'POST',
-      headers: authHeaders(),
-    });
-    if (res.ok) return res.json();
-  } catch (err) {
-    // API offline
-  }
-  return { id: orderId, status: 'SUCCEEDED' };
+export function confirmStripePayment(orderId: string): Promise<{ id: string; status: string }> {
+  return fetch(`/api/orders/checkout/${orderId}/confirm`, {
+    method: 'POST',
+    headers: authHeaders(),
+  }).then((r) => handle(r));
 }
-
