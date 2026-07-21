@@ -39,12 +39,19 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+interface ProductRow {
+  id: string;
+  category: string;
+  name: string;
+  base_price: string | number;
+}
+
 app.get('/products', async (req, res) => {
   const category = typeof req.query.category === 'string' ? req.query.category : undefined;
-  const result = category
-    ? await pool.query('SELECT id, category, name, base_price FROM products WHERE category = $1 ORDER BY created_at', [category])
+  const [rows] = category
+    ? await pool.query('SELECT id, category, name, base_price FROM products WHERE category = ? ORDER BY created_at', [category])
     : await pool.query('SELECT id, category, name, base_price FROM products ORDER BY created_at');
-  res.json(result.rows.map(toProductSummary));
+  res.json((rows as ProductRow[]).map(toProductSummary));
 });
 
 app.get('/products/:id', async (req, res) => {
@@ -64,31 +71,33 @@ app.post('/price', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const { productId, fabricId, styleOptionIds } = parsed.data;
 
-  const productRes = await pool.query('SELECT base_price FROM products WHERE id = $1', [productId]);
-  if (!productRes.rowCount) return res.status(404).json({ error: 'product not found' });
-  const basePrice = Number(productRes.rows[0].base_price);
+  const [productRows] = await pool.query('SELECT base_price FROM products WHERE id = ?', [productId]);
+  const productRow = (productRows as { base_price: string | number }[])[0];
+  if (!productRow) return res.status(404).json({ error: 'product not found' });
+  const basePrice = Number(productRow.base_price);
 
-  const fabricRes = await pool.query(
-    'SELECT id, name, price_premium FROM fabric_options WHERE id = $1 AND product_id = $2',
+  const [fabricRows] = await pool.query(
+    'SELECT id, name, price_premium FROM fabric_options WHERE id = ? AND product_id = ?',
     [fabricId, productId],
   );
-  if (!fabricRes.rowCount) return res.status(400).json({ error: 'invalid fabric for this product' });
-  const fabric = fabricRes.rows[0];
+  const fabric = (fabricRows as { id: string; name: string; price_premium: string | number }[])[0];
+  if (!fabric) return res.status(400).json({ error: 'invalid fabric for this product' });
 
   let styleTotal = 0;
   const styleBreakdown: { id: string; label: string; pricePremium: number }[] = [];
   if (styleOptionIds.length) {
-    const styleRes = await pool.query(
+    const [styleRows] = await pool.query(
       `SELECT so.id, so.label, so.price_premium
        FROM style_options so
        JOIN style_groups sg ON sg.id = so.style_group_id
-       WHERE so.id = ANY($1) AND sg.product_id = $2`,
+       WHERE so.id IN (?) AND sg.product_id = ?`,
       [styleOptionIds, productId],
     );
-    if (styleRes.rowCount !== styleOptionIds.length) {
+    const styles = styleRows as { id: string; label: string; price_premium: string | number }[];
+    if (styles.length !== styleOptionIds.length) {
       return res.status(400).json({ error: 'one or more style options invalid for this product' });
     }
-    for (const row of styleRes.rows) {
+    for (const row of styles) {
       styleTotal += Number(row.price_premium);
       styleBreakdown.push({ id: row.id, label: row.label, pricePremium: Number(row.price_premium) });
     }
@@ -116,11 +125,11 @@ app.post('/admin/products', requireAdmin, async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const { category, name, basePrice } = parsed.data;
 
-  const result = await pool.query(
-    'INSERT INTO products (category, name, base_price) VALUES ($1, $2, $3) RETURNING id, category, name, base_price',
+  const [result] = await pool.query(
+    'INSERT INTO products (category, name, base_price) VALUES (?, ?, ?) RETURNING id, category, name, base_price',
     [category, name, basePrice],
   );
-  res.status(201).json(toProductSummary(result.rows[0]));
+  res.status(201).json(toProductSummary((result as ProductRow[])[0]));
 });
 
 const updateProductSchema = z.object({
@@ -136,13 +145,14 @@ app.patch('/admin/products/:id', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'nothing to update' });
   }
 
-  const result = await pool.query(
-    `UPDATE products SET name = COALESCE($1, name), base_price = COALESCE($2, base_price)
-     WHERE id = $3 RETURNING id, category, name, base_price`,
+  await pool.query(
+    `UPDATE products SET name = COALESCE(?, name), base_price = COALESCE(?, base_price) WHERE id = ?`,
     [name ?? null, basePrice ?? null, req.params.id],
   );
-  if (!result.rowCount) return res.status(404).json({ error: 'product not found' });
-  res.json(toProductSummary(result.rows[0]));
+  const [rows] = await pool.query('SELECT id, category, name, base_price FROM products WHERE id = ?', [req.params.id]);
+  const product = (rows as ProductRow[])[0];
+  if (!product) return res.status(404).json({ error: 'product not found' });
+  res.json(toProductSummary(product));
 });
 
 const fabricSchema = z.object({
@@ -155,16 +165,16 @@ const fabricSchema = z.object({
 app.post('/admin/products/:id/fabrics', requireAdmin, async (req, res) => {
   const parsed = fabricSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-  const productRes = await pool.query('SELECT id FROM products WHERE id = $1', [req.params.id]);
-  if (!productRes.rowCount) return res.status(404).json({ error: 'product not found' });
+  const [productRows] = await pool.query('SELECT id FROM products WHERE id = ?', [req.params.id]);
+  if (!(productRows as { id: string }[]).length) return res.status(404).json({ error: 'product not found' });
 
   const { name, swatchImageUrl, pricePremium, supplierRef } = parsed.data;
-  const result = await pool.query(
+  const [result] = await pool.query(
     `INSERT INTO fabric_options (product_id, name, swatch_image_url, price_premium, supplier_ref)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id, name, swatch_image_url, price_premium, supplier_ref`,
+     VALUES (?, ?, ?, ?, ?) RETURNING id, name, swatch_image_url, price_premium, supplier_ref`,
     [req.params.id, name, swatchImageUrl, pricePremium, supplierRef],
   );
-  const f = result.rows[0];
+  const f = (result as { id: string; name: string; swatch_image_url: string; price_premium: string | number; supplier_ref: string }[])[0];
   res.status(201).json({
     id: f.id,
     name: f.name,
@@ -179,14 +189,14 @@ const styleGroupSchema = z.object({ name: z.string().min(1) });
 app.post('/admin/products/:id/style-groups', requireAdmin, async (req, res) => {
   const parsed = styleGroupSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-  const productRes = await pool.query('SELECT id FROM products WHERE id = $1', [req.params.id]);
-  if (!productRes.rowCount) return res.status(404).json({ error: 'product not found' });
+  const [productRows] = await pool.query('SELECT id FROM products WHERE id = ?', [req.params.id]);
+  if (!(productRows as { id: string }[]).length) return res.status(404).json({ error: 'product not found' });
 
-  const result = await pool.query(
-    'INSERT INTO style_groups (product_id, name) VALUES ($1, $2) RETURNING id, name',
+  const [result] = await pool.query(
+    'INSERT INTO style_groups (product_id, name) VALUES (?, ?) RETURNING id, name',
     [req.params.id, parsed.data.name],
   );
-  res.status(201).json(result.rows[0]);
+  res.status(201).json((result as { id: string; name: string }[])[0]);
 });
 
 const styleOptionSchema = z.object({
@@ -197,45 +207,49 @@ const styleOptionSchema = z.object({
 app.post('/admin/style-groups/:id/options', requireAdmin, async (req, res) => {
   const parsed = styleOptionSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-  const groupRes = await pool.query('SELECT id FROM style_groups WHERE id = $1', [req.params.id]);
-  if (!groupRes.rowCount) return res.status(404).json({ error: 'style group not found' });
+  const [groupRows] = await pool.query('SELECT id FROM style_groups WHERE id = ?', [req.params.id]);
+  if (!(groupRows as { id: string }[]).length) return res.status(404).json({ error: 'style group not found' });
 
   const { label, pricePremium } = parsed.data;
-  const result = await pool.query(
-    'INSERT INTO style_options (style_group_id, label, price_premium) VALUES ($1, $2, $3) RETURNING id, label, price_premium',
+  const [result] = await pool.query(
+    'INSERT INTO style_options (style_group_id, label, price_premium) VALUES (?, ?, ?) RETURNING id, label, price_premium',
     [req.params.id, label, pricePremium],
   );
-  const o = result.rows[0];
+  const o = (result as { id: string; label: string; price_premium: string | number }[])[0];
   res.status(201).json({ id: o.id, label: o.label, pricePremium: Number(o.price_premium) });
 });
 
-function toProductSummary(row: any) {
+function toProductSummary(row: ProductRow) {
   return { id: row.id, category: row.category, name: row.name, basePrice: Number(row.base_price) };
 }
 
 async function loadFullProduct(id: string) {
-  const productRes = await pool.query('SELECT id, category, name, base_price FROM products WHERE id = $1', [id]);
-  if (!productRes.rowCount) return null;
-  const product = productRes.rows[0];
+  const [productRows] = await pool.query('SELECT id, category, name, base_price FROM products WHERE id = ?', [id]);
+  const product = (productRows as ProductRow[])[0];
+  if (!product) return null;
 
-  const fabricsRes = await pool.query(
-    'SELECT id, name, swatch_image_url, price_premium, supplier_ref FROM fabric_options WHERE product_id = $1 ORDER BY sort_order',
+  const [fabricRows] = await pool.query(
+    'SELECT id, name, swatch_image_url, price_premium, supplier_ref FROM fabric_options WHERE product_id = ? ORDER BY sort_order',
     [id],
   );
-  const groupsRes = await pool.query(
-    'SELECT id, name FROM style_groups WHERE product_id = $1 ORDER BY sort_order',
+  const [groupRows] = await pool.query(
+    'SELECT id, name FROM style_groups WHERE product_id = ? ORDER BY sort_order',
     [id],
   );
   const groups = [];
-  for (const group of groupsRes.rows) {
-    const optionsRes = await pool.query(
-      'SELECT id, label, price_premium FROM style_options WHERE style_group_id = $1 ORDER BY sort_order',
+  for (const group of groupRows as { id: string; name: string }[]) {
+    const [optionRows] = await pool.query(
+      'SELECT id, label, price_premium FROM style_options WHERE style_group_id = ? ORDER BY sort_order',
       [group.id],
     );
     groups.push({
       id: group.id,
       name: group.name,
-      options: optionsRes.rows.map((o) => ({ id: o.id, label: o.label, pricePremium: Number(o.price_premium) })),
+      options: (optionRows as { id: string; label: string; price_premium: string | number }[]).map((o) => ({
+        id: o.id,
+        label: o.label,
+        pricePremium: Number(o.price_premium),
+      })),
     });
   }
 
@@ -244,7 +258,7 @@ async function loadFullProduct(id: string) {
     category: product.category,
     name: product.name,
     basePrice: Number(product.base_price),
-    fabricOptions: fabricsRes.rows.map((f) => ({
+    fabricOptions: (fabricRows as { id: string; name: string; swatch_image_url: string; price_premium: string | number; supplier_ref: string }[]).map((f) => ({
       id: f.id,
       name: f.name,
       swatchImageUrl: f.swatch_image_url,

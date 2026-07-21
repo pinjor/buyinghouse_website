@@ -34,7 +34,7 @@ Integrated product lines across all 7 apparel manufacturing divisions:
   - `catalog-service` (Port 4001): Product catalog, fabrics, and price calculations.
   - `order-service` (Port 4002): Shopping cart management & checkout flow.
   - `auth-service` (Port 4003): User authentication & JWT session management.
-- **Database**: PostgreSQL with microservice database isolation.
+- **Database**: MySQL/MariaDB with microservice database isolation.
 - **Styling & Design System**: Custom luxury dark theme (`#0A111C`), metallic gold highlights (`#D4AF37`), and cyan action CTAs (`#2EB2E2`).
 
 ---

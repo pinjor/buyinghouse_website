@@ -1,14 +1,13 @@
 version: "3.9"
 services:
-  postgres:
-    image: postgres:16
+  mariadb:
+    image: mariadb:10.6
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      MARIADB_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
     volumes:
       - "./infra/init-db:/docker-entrypoint-initdb.d"
-      - "pgdata:/var/lib/postgresql/data"
-    ports: [ "5434:5432" ]
+      - "mysqldata:/var/lib/mysql"
+    ports: [ "3307:3306" ]
 
   redis:
     image: redis:7
@@ -29,30 +28,30 @@ services:
   auth-service:
     build: ./services/auth-service
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/auth
+      DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-root}@mariadb:3306/auth
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET in .env — no default is provided}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env — no default is provided}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
-    depends_on: [ postgres ]
+    depends_on: [ mariadb ]
 
   catalog-service:
     build: ./services/catalog-service
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/catalog
+      DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-root}@mariadb:3306/catalog
       INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?set INTERNAL_SERVICE_SECRET in .env — no default is provided}
-    depends_on: [ postgres ]
+    depends_on: [ mariadb ]
 
   order-service:
     build: ./services/order-service
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/orders
+      DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-root}@mariadb:3306/orders
       CATALOG_SERVICE_URL: http://catalog-service:4002
       RABBITMQ_URL: amqp://rabbitmq:5672
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?set INTERNAL_SERVICE_SECRET in .env — no default is provided}
-    depends_on: [ postgres, rabbitmq, catalog-service ]
+    depends_on: [ mariadb, rabbitmq, catalog-service ]
 
   notification-service:
     build: ./services/notification-service
@@ -74,7 +73,7 @@ services:
       ORDER_SERVICE_URL: http://order-service:4003
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET in .env — no default is provided}
       INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?set INTERNAL_SERVICE_SECRET in .env — no default is provided}
-    depends_on: [ postgres, auth-service, catalog-service, order-service ]
+    depends_on: [ mariadb, auth-service, catalog-service, order-service ]
 
   frontend:
     build:
@@ -85,4 +84,4 @@ services:
     depends_on: [ gateway ]
 
 volumes:
-  pgdata:
+  mysqldata:

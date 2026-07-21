@@ -21,15 +21,15 @@ app.post('/register', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const { email, password } = parsed.data;
 
-  const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
-  if (existing.rowCount) return res.status(409).json({ error: 'email already registered' });
+  const [existingRows] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+  if ((existingRows as unknown[]).length) return res.status(409).json({ error: 'email already registered' });
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const result = await pool.query(
-    'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, role',
+  const [result] = await pool.query(
+    'INSERT INTO users (email, password_hash) VALUES (?, ?) RETURNING id, email, role',
     [email, passwordHash],
   );
-  const user = result.rows[0];
+  const user = (result as { id: string; email: string; role: string }[])[0];
 
   const payload = { sub: user.id, email: user.email, role: user.role };
   res.status(201).json({
@@ -44,8 +44,8 @@ app.post('/login', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const { email, password } = parsed.data;
 
-  const result = await pool.query('SELECT id, email, role, password_hash FROM users WHERE email = $1', [email]);
-  const user = result.rows[0];
+  const [rows] = await pool.query('SELECT id, email, role, password_hash FROM users WHERE email = ?', [email]);
+  const user = (rows as { id: string; email: string; role: string; password_hash: string }[])[0];
   if (!user) return res.status(401).json({ error: 'invalid credentials' });
 
   const valid = await bcrypt.compare(password, user.password_hash);

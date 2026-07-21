@@ -1,46 +1,51 @@
-import pg from 'pg';
+import mysql from 'mysql2/promise';
 
-const { Pool } = pg;
-
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5432/catalog',
-});
+export const pool = mysql.createPool(
+  process.env.DATABASE_URL ?? 'mysql://root:root@localhost:3306/catalog',
+);
 
 export async function migrate() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS products (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS products (
+      id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
       category TEXT NOT NULL,
       name TEXT NOT NULL,
-      base_price NUMERIC(10,2) NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    );
+      base_price DECIMAL(10,2) NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB`,
 
-    CREATE TABLE IF NOT EXISTS fabric_options (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    `CREATE TABLE IF NOT EXISTS fabric_options (
+      id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+      product_id CHAR(36) NOT NULL,
       name TEXT NOT NULL,
       swatch_image_url TEXT NOT NULL,
-      price_premium NUMERIC(10,2) NOT NULL DEFAULT 0,
+      price_premium DECIMAL(10,2) NOT NULL DEFAULT 0,
       supplier_ref TEXT NOT NULL,
-      sort_order INT NOT NULL DEFAULT 0
-    );
+      sort_order INT NOT NULL DEFAULT 0,
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB`,
 
-    CREATE TABLE IF NOT EXISTS style_groups (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    `CREATE TABLE IF NOT EXISTS style_groups (
+      id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+      product_id CHAR(36) NOT NULL,
       name TEXT NOT NULL,
-      sort_order INT NOT NULL DEFAULT 0
-    );
+      sort_order INT NOT NULL DEFAULT 0,
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB`,
 
-    CREATE TABLE IF NOT EXISTS style_options (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      style_group_id UUID NOT NULL REFERENCES style_groups(id) ON DELETE CASCADE,
+    `CREATE TABLE IF NOT EXISTS style_options (
+      id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+      style_group_id CHAR(36) NOT NULL,
       label TEXT NOT NULL,
-      price_premium NUMERIC(10,2) NOT NULL DEFAULT 0,
-      sort_order INT NOT NULL DEFAULT 0
-    );
-  `);
+      price_premium DECIMAL(10,2) NOT NULL DEFAULT 0,
+      sort_order INT NOT NULL DEFAULT 0,
+      FOREIGN KEY (style_group_id) REFERENCES style_groups(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB`,
+  ];
+
+  for (const statement of statements) {
+    await pool.query(statement);
+  }
 }
 
 interface SeedFabric {
@@ -280,36 +285,37 @@ const SEED_PRODUCTS: SeedProduct[] = [
 ];
 
 export async function seedIfEmpty() {
-  const { rows } = await pool.query('SELECT COUNT(*)::int AS count FROM products');
-  if (rows[0].count > 0) return;
+  const [rows] = await pool.query('SELECT COUNT(*) AS count FROM products');
+  const count = Number((rows as { count: number }[])[0].count);
+  if (count > 0) return;
 
   for (const product of SEED_PRODUCTS) {
-    const productRes = await pool.query(
-      'INSERT INTO products (category, name, base_price) VALUES ($1, $2, $3) RETURNING id',
+    const [productResult] = await pool.query(
+      'INSERT INTO products (category, name, base_price) VALUES (?, ?, ?) RETURNING id',
       [product.category, product.name, product.basePrice],
     );
-    const productId = productRes.rows[0].id;
+    const productId = (productResult as { id: string }[])[0].id;
 
     for (let i = 0; i < product.fabrics.length; i++) {
       const f = product.fabrics[i];
       await pool.query(
         `INSERT INTO fabric_options (product_id, name, swatch_image_url, price_premium, supplier_ref, sort_order)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
+         VALUES (?, ?, ?, ?, ?, ?)`,
         [productId, f.name, f.swatch, f.premium, f.supplier, i],
       );
     }
 
     for (let g = 0; g < product.styleGroups.length; g++) {
       const group = product.styleGroups[g];
-      const groupRes = await pool.query(
-        'INSERT INTO style_groups (product_id, name, sort_order) VALUES ($1, $2, $3) RETURNING id',
+      const [groupResult] = await pool.query(
+        'INSERT INTO style_groups (product_id, name, sort_order) VALUES (?, ?, ?) RETURNING id',
         [productId, group.name, g],
       );
-      const groupId = groupRes.rows[0].id;
+      const groupId = (groupResult as { id: string }[])[0].id;
       for (let o = 0; o < group.options.length; o++) {
         const opt = group.options[o];
         await pool.query(
-          'INSERT INTO style_options (style_group_id, label, price_premium, sort_order) VALUES ($1, $2, $3, $4)',
+          'INSERT INTO style_options (style_group_id, label, price_premium, sort_order) VALUES (?, ?, ?, ?)',
           [groupId, opt.label, opt.premium, o],
         );
       }

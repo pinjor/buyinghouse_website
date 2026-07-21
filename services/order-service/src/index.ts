@@ -15,6 +15,21 @@ function requireEnv(name: string): string {
   return value;
 }
 
+// JSON columns come back already parsed from mysql2 in the common case, but
+// fall back to parsing a raw string so behavior doesn't depend on driver
+// version/config nuances.
+function fromJsonColumn<T>(value: unknown, fallback: T): T {
+  if (value == null) return fallback;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  return value as T;
+}
+
 const app = express();
 app.use(cors());
 
@@ -70,26 +85,38 @@ function requireUser(req: Request, res: Response, next: NextFunction) {
 }
 
 async function getOrCreateCart(userId: string): Promise<string> {
-  const existing = await pool.query('SELECT id FROM carts WHERE user_id = $1', [userId]);
-  if (existing.rowCount) return existing.rows[0].id;
-  const created = await pool.query('INSERT INTO carts (user_id) VALUES ($1) RETURNING id', [userId]);
-  return created.rows[0].id;
+  const [existingRows] = await pool.query('SELECT id FROM carts WHERE user_id = ?', [userId]);
+  const existing = (existingRows as { id: string }[])[0];
+  if (existing) return existing.id;
+  const [created] = await pool.query('INSERT INTO carts (user_id) VALUES (?) RETURNING id', [userId]);
+  return (created as { id: string }[])[0].id;
+}
+
+interface CartItemRow {
+  id: string;
+  product_id: string;
+  product_name: string;
+  fabric_id: string;
+  style_option_ids: unknown;
+  measurements: unknown;
+  unit_price: string | number;
+  quantity: number;
 }
 
 async function loadCart(userId: string) {
   const cartId = await getOrCreateCart(userId);
-  const items = await pool.query(
+  const [itemRows] = await pool.query(
     `SELECT id, product_id, product_name, fabric_id, style_option_ids, measurements, unit_price, quantity
-     FROM cart_items WHERE cart_id = $1 ORDER BY created_at`,
+     FROM cart_items WHERE cart_id = ? ORDER BY created_at`,
     [cartId],
   );
-  const rows = items.rows.map((r) => ({
+  const rows = (itemRows as CartItemRow[]).map((r) => ({
     id: r.id,
     productId: r.product_id,
     productName: r.product_name,
     fabricId: r.fabric_id,
-    styleOptionIds: r.style_option_ids,
-    measurements: r.measurements,
+    styleOptionIds: fromJsonColumn<string[]>(r.style_option_ids, []),
+    measurements: fromJsonColumn<Record<string, string>>(r.measurements, {}),
     unitPrice: Number(r.unit_price),
     quantity: r.quantity,
   }));
@@ -137,8 +164,8 @@ app.post('/cart/items', requireUser, async (req, res) => {
   const cartId = await getOrCreateCart(userId);
   await pool.query(
     `INSERT INTO cart_items (cart_id, product_id, product_name, fabric_id, style_option_ids, measurements, unit_price, quantity)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [cartId, productId, product.name, fabricId, styleOptionIds, JSON.stringify(measurements), price.total, quantity],
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [cartId, productId, product.name, fabricId, JSON.stringify(styleOptionIds), JSON.stringify(measurements), price.total, quantity],
   );
   res.status(201).json(await loadCart(userId));
 });
@@ -146,7 +173,7 @@ app.post('/cart/items', requireUser, async (req, res) => {
 app.delete('/cart/items/:itemId', requireUser, async (req, res) => {
   const { userId } = req as Request & { userId: string };
   const cartId = await getOrCreateCart(userId);
-  await pool.query('DELETE FROM cart_items WHERE id = $1 AND cart_id = $2', [req.params.itemId, cartId]);
+  await pool.query('DELETE FROM cart_items WHERE id = ? AND cart_id = ?', [req.params.itemId, cartId]);
   res.json(await loadCart(userId));
 });
 
@@ -154,6 +181,14 @@ const PAYMENT_METHODS = ['stripe', 'wire'] as const;
 const checkoutSchema = z.object({
   paymentMethod: z.enum(PAYMENT_METHODS),
 });
+
+interface OrderRow {
+  id: string;
+  status: string;
+  total: string | number;
+  created_at: Date | string;
+  payment_method: string | null;
+}
 
 // Order is created as pending_payment and only ever flips to placed once
 // payment is independently verified server-side (Stripe: webhook/confirm
@@ -172,26 +207,26 @@ app.post('/checkout', requireUser, async (req, res) => {
   const cart = await loadCart(userId);
   if (cart.items.length === 0) return res.status(400).json({ error: 'cart is empty' });
 
-  const client = await pool.connect();
+  const connection = await pool.getConnection();
   try {
-    await client.query('BEGIN');
-    const orderRes = await client.query(
+    await connection.beginTransaction();
+    const [orderResult] = await connection.query(
       `INSERT INTO orders (user_id, user_email, status, total, payment_method)
-       VALUES ($1, $2, 'pending_payment', $3, $4) RETURNING id, status, total, created_at, payment_method`,
+       VALUES (?, ?, 'pending_payment', ?, ?) RETURNING id, status, total, created_at, payment_method`,
       [userId, userEmail ?? null, cart.total, paymentMethod],
     );
-    const order = orderRes.rows[0];
+    const order = (orderResult as OrderRow[])[0];
 
     for (const item of cart.items) {
-      await client.query(
+      await connection.query(
         `INSERT INTO order_items (order_id, product_id, product_name, fabric_id, style_option_ids, measurements, unit_price, quantity)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           order.id,
           item.productId,
           item.productName,
           item.fabricId,
-          item.styleOptionIds,
+          JSON.stringify(item.styleOptionIds),
           JSON.stringify(item.measurements),
           item.unitPrice,
           item.quantity,
@@ -199,13 +234,13 @@ app.post('/checkout', requireUser, async (req, res) => {
       );
     }
 
-    await client.query('DELETE FROM cart_items WHERE cart_id = $1', [cart.id]);
-    await client.query('COMMIT');
+    await connection.query('DELETE FROM cart_items WHERE cart_id = ?', [cart.id]);
+    await connection.commit();
 
     let clientSecret: string | null = null;
     if (paymentMethod === 'stripe') {
       const intent = await createPaymentIntent(Number(order.total), 'usd', order.id);
-      await pool.query('UPDATE orders SET payment_intent_id = $1 WHERE id = $2', [intent.id, order.id]);
+      await pool.query('UPDATE orders SET payment_intent_id = ? WHERE id = ?', [intent.id, order.id]);
       clientSecret = intent.client_secret;
     }
 
@@ -219,41 +254,44 @@ app.post('/checkout', requireUser, async (req, res) => {
       clientSecret,
     });
   } catch (err) {
-    await client.query('ROLLBACK');
+    await connection.rollback();
     console.error('checkout failed', err);
     res.status(500).json({ error: 'checkout failed' });
   } finally {
-    client.release();
+    connection.release();
   }
 });
 
 async function markOrderPlacedIfPending(orderId: string, paymentIntentId: string) {
-  const result = await pool.query(
+  const [updateResult] = await pool.query(
     `UPDATE orders SET status = 'placed'
-     WHERE id = $1 AND status = 'pending_payment' AND payment_intent_id = $2
-     RETURNING id, user_id, user_email, total`,
+     WHERE id = ? AND status = 'pending_payment' AND payment_intent_id = ?`,
     [orderId, paymentIntentId],
   );
-  if (!result.rowCount) return;
-  const order = result.rows[0];
-  const itemsRes = await pool.query('SELECT id FROM order_items WHERE order_id = $1', [order.id]);
+  if ((updateResult as { affectedRows: number }).affectedRows === 0) return;
+
+  const [orderRows] = await pool.query('SELECT id, user_id, user_email, total FROM orders WHERE id = ?', [orderId]);
+  const order = (orderRows as { id: string; user_id: string; user_email: string | null; total: string | number }[])[0];
+  if (!order) return;
+
+  const [itemRows] = await pool.query('SELECT id FROM order_items WHERE order_id = ?', [order.id]);
   publishOrderEvent('order.placed', {
     orderId: order.id,
     userId: order.user_id,
     userEmail: order.user_email,
     total: Number(order.total),
-    itemCount: itemsRes.rowCount,
+    itemCount: (itemRows as unknown[]).length,
   });
 }
 
 app.post('/checkout/:orderId/confirm', requireUser, async (req, res) => {
   const { userId } = req as Request & { userId: string };
-  const orderRes = await pool.query(
-    `SELECT id, status, payment_method, payment_intent_id, total FROM orders WHERE id = $1 AND user_id = $2`,
+  const [orderRows] = await pool.query(
+    `SELECT id, status, payment_method, payment_intent_id, total FROM orders WHERE id = ? AND user_id = ?`,
     [req.params.orderId, userId],
   );
-  if (!orderRes.rowCount) return res.status(404).json({ error: 'order not found' });
-  const order = orderRes.rows[0];
+  const order = (orderRows as { id: string; status: string; payment_method: string | null; payment_intent_id: string | null; total: string | number }[])[0];
+  if (!order) return res.status(404).json({ error: 'order not found' });
 
   if (order.payment_method !== 'stripe' || !order.payment_intent_id) {
     return res.status(400).json({ error: 'order does not use card payment confirmation' });
@@ -279,11 +317,11 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
 const ORDER_STATUS_SEQUENCE = ['pending_payment', 'placed', 'in_production', 'shipped', 'delivered'] as const;
 
 app.get('/admin/orders', requireAdmin, async (_req, res) => {
-  const result = await pool.query(
+  const [rows] = await pool.query(
     'SELECT id, user_id, user_email, status, total, payment_method, created_at FROM orders ORDER BY created_at DESC',
   );
   res.json(
-    result.rows.map((r) => ({
+    (rows as { id: string; user_id: string; user_email: string | null; status: string; total: string | number; payment_method: string | null; created_at: Date | string }[]).map((r) => ({
       id: r.id,
       userId: r.user_id,
       userEmail: r.user_email,
@@ -303,13 +341,13 @@ app.patch('/admin/orders/:id/status', requireAdmin, async (req, res) => {
   const parsed = statusUpdateSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const orderRes = await pool.query('SELECT id, user_id, user_email, status, total FROM orders WHERE id = $1', [
+  const [orderRows] = await pool.query('SELECT id, user_id, user_email, status, total FROM orders WHERE id = ?', [
     req.params.id,
   ]);
-  if (!orderRes.rowCount) return res.status(404).json({ error: 'order not found' });
-  const order = orderRes.rows[0];
+  const order = (orderRows as { id: string; user_id: string; user_email: string | null; status: string; total: string | number }[])[0];
+  if (!order) return res.status(404).json({ error: 'order not found' });
 
-  const currentIndex = ORDER_STATUS_SEQUENCE.indexOf(order.status);
+  const currentIndex = ORDER_STATUS_SEQUENCE.indexOf(order.status as (typeof ORDER_STATUS_SEQUENCE)[number]);
   const nextIndex = ORDER_STATUS_SEQUENCE.indexOf(parsed.data.status);
   if (nextIndex !== currentIndex + 1) {
     return res.status(400).json({
@@ -317,7 +355,7 @@ app.patch('/admin/orders/:id/status', requireAdmin, async (req, res) => {
     });
   }
 
-  await pool.query('UPDATE orders SET status = $1 WHERE id = $2', [parsed.data.status, order.id]);
+  await pool.query('UPDATE orders SET status = ? WHERE id = ?', [parsed.data.status, order.id]);
 
   publishOrderEvent(`order.${parsed.data.status}`, {
     orderId: order.id,
@@ -331,12 +369,12 @@ app.patch('/admin/orders/:id/status', requireAdmin, async (req, res) => {
 
 app.get('/orders', requireUser, async (req, res) => {
   const { userId } = req as Request & { userId: string };
-  const result = await pool.query(
-    'SELECT id, status, total, payment_method, created_at FROM orders WHERE user_id = $1 ORDER BY created_at DESC',
+  const [rows] = await pool.query(
+    'SELECT id, status, total, payment_method, created_at FROM orders WHERE user_id = ? ORDER BY created_at DESC',
     [userId],
   );
   res.json(
-    result.rows.map((r) => ({
+    (rows as { id: string; status: string; total: string | number; payment_method: string | null; created_at: Date | string }[]).map((r) => ({
       id: r.id,
       status: r.status,
       total: Number(r.total),
@@ -348,16 +386,16 @@ app.get('/orders', requireUser, async (req, res) => {
 
 app.get('/orders/:id', requireUser, async (req, res) => {
   const { userId } = req as Request & { userId: string };
-  const orderRes = await pool.query(
-    'SELECT id, status, total, payment_method, created_at FROM orders WHERE id = $1 AND user_id = $2',
+  const [orderRows] = await pool.query(
+    'SELECT id, status, total, payment_method, created_at FROM orders WHERE id = ? AND user_id = ?',
     [req.params.id, userId],
   );
-  if (!orderRes.rowCount) return res.status(404).json({ error: 'order not found' });
-  const order = orderRes.rows[0];
+  const order = (orderRows as OrderRow[])[0];
+  if (!order) return res.status(404).json({ error: 'order not found' });
 
-  const itemsRes = await pool.query(
+  const [itemRows] = await pool.query(
     `SELECT id, product_id, product_name, fabric_id, style_option_ids, measurements, unit_price, quantity
-     FROM order_items WHERE order_id = $1`,
+     FROM order_items WHERE order_id = ?`,
     [order.id],
   );
 
@@ -367,13 +405,13 @@ app.get('/orders/:id', requireUser, async (req, res) => {
     total: Number(order.total),
     paymentMethod: order.payment_method,
     createdAt: order.created_at,
-    items: itemsRes.rows.map((r) => ({
+    items: (itemRows as CartItemRow[]).map((r) => ({
       id: r.id,
       productId: r.product_id,
       productName: r.product_name,
       fabricId: r.fabric_id,
-      styleOptionIds: r.style_option_ids,
-      measurements: r.measurements,
+      styleOptionIds: fromJsonColumn<string[]>(r.style_option_ids, []),
+      measurements: fromJsonColumn<Record<string, string>>(r.measurements, {}),
       unitPrice: Number(r.unit_price),
       quantity: r.quantity,
     })),
@@ -388,14 +426,24 @@ const measurementProfileSchema = z.object({
   sleeveLength: z.number().positive().optional(),
 });
 
+interface MeasurementProfileRow {
+  id: string;
+  label: string;
+  neck: string | number | null;
+  chest: string | number | null;
+  waist: string | number | null;
+  sleeve_length: string | number | null;
+  created_at: Date | string;
+}
+
 app.get('/measurement-profiles', requireUser, async (req, res) => {
   const { userId } = req as Request & { userId: string };
-  const result = await pool.query(
-    'SELECT id, label, neck, chest, waist, sleeve_length, created_at FROM measurement_profiles WHERE user_id = $1 ORDER BY created_at DESC',
+  const [rows] = await pool.query(
+    'SELECT id, label, neck, chest, waist, sleeve_length, created_at FROM measurement_profiles WHERE user_id = ? ORDER BY created_at DESC',
     [userId],
   );
   res.json(
-    result.rows.map((r) => ({
+    (rows as MeasurementProfileRow[]).map((r) => ({
       id: r.id,
       label: r.label,
       neck: r.neck ? Number(r.neck) : null,
@@ -413,12 +461,12 @@ app.post('/measurement-profiles', requireUser, async (req, res) => {
   const { userId } = req as Request & { userId: string };
   const { label, neck, chest, waist, sleeveLength } = parsed.data;
 
-  const result = await pool.query(
+  const [result] = await pool.query(
     `INSERT INTO measurement_profiles (user_id, label, neck, chest, waist, sleeve_length)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, label, neck, chest, waist, sleeve_length, created_at`,
+     VALUES (?, ?, ?, ?, ?, ?) RETURNING id, label, neck, chest, waist, sleeve_length, created_at`,
     [userId, label, neck ?? null, chest ?? null, waist ?? null, sleeveLength ?? null],
   );
-  const r = result.rows[0];
+  const r = (result as MeasurementProfileRow[])[0];
   res.status(201).json({
     id: r.id,
     label: r.label,
