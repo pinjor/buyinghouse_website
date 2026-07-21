@@ -81,17 +81,90 @@ const SEED_PRODUCTS: SeedProduct[] = [
   },
   {
     category: 'suit',
-    name: 'Two-Piece Suit',
-    basePrice: 450,
+    name: 'Custom Tailored Suit',
+    basePrice: 239,
     fabrics: [
-      { name: 'Wool — Charcoal', swatch: '/swatches/wool-charcoal.jpg', premium: 0, supplier: 'LS-WOOL-CHR-001' },
-      { name: 'Wool — Navy Pinstripe', swatch: '/swatches/wool-navy-pinstripe.jpg', premium: 40, supplier: 'LS-WOOL-NVP-007' },
-      { name: 'Wool-Silk Blend', swatch: '/swatches/wool-silk.jpg', premium: 90, supplier: 'LS-WSB-BLK-003' },
+      { name: 'Dark Navy Wool Blend', swatch: '/swatches/dark-navy.jpg', premium: 0, supplier: 'LS-3799-20' },
+      { name: 'Textured Light Grey', swatch: '/swatches/light-grey.jpg', premium: 0, supplier: 'LS-3799-21' },
+      { name: 'Classic Black Suit', swatch: '/swatches/black.jpg', premium: 0, supplier: 'LS-3799-22' },
+      { name: 'Light Navy Wool', swatch: '/swatches/light-navy.jpg', premium: 10, supplier: 'LS-3800-01' },
+      { name: 'Brown Wool Blend', swatch: '/swatches/brown.jpg', premium: 10, supplier: 'LS-3800-05' },
+      { name: 'Textured Charcoal', swatch: '/swatches/charcoal.jpg', premium: 15, supplier: 'LS-3800-08' },
+      { name: 'Khaki Linen Blend', swatch: '/swatches/khaki.jpg', premium: 10, supplier: 'LS-3801-02' },
+      { name: 'Beige Summer Wool', swatch: '/swatches/beige.jpg', premium: 10, supplier: 'LS-3801-04' },
+      { name: 'Green Taupe Twill', swatch: '/swatches/green-taupe.jpg', premium: 15, supplier: 'LS-3802-09' },
+      { name: 'Off White Cream', swatch: '/swatches/off-white.jpg', premium: 20, supplier: 'LS-3803-12' },
     ],
     styleGroups: [
-      { name: 'Lapel', options: [{ label: 'Notch', premium: 0 }, { label: 'Peak', premium: 15 }, { label: 'Shawl', premium: 20 }] },
-      { name: 'Vents', options: [{ label: 'Single', premium: 0 }, { label: 'Double', premium: 10 }, { label: 'None', premium: 0 }] },
-      { name: 'Fit', options: [{ label: 'Slim', premium: 0 }, { label: 'Regular', premium: 0 }, { label: 'Relaxed', premium: 0 }] },
+      {
+        name: 'Buttons',
+        options: [
+          { label: '1 Button, Single Breasted', premium: 0 },
+          { label: '2 Buttons, Single Breasted', premium: 0 },
+          { label: '3 Buttons, Single Breasted', premium: 0 },
+          { label: '4 Buttons, Single Breasted', premium: 5 },
+          { label: '4 Buttons, Double Breasted', premium: 15 },
+          { label: '6 Buttons, Double Breasted', premium: 20 },
+        ],
+      },
+      {
+        name: 'Lapel',
+        options: [
+          { label: 'Notch Lapel', premium: 0 },
+          { label: 'Peak Lapel', premium: 15 },
+          { label: 'Round Notch Lapel', premium: 10 },
+          { label: 'Shawl Lapel', premium: 20 },
+        ],
+      },
+      {
+        name: 'Lapel Width',
+        options: [
+          { label: 'Narrow (2.25 in)', premium: 0 },
+          { label: 'Standard (2.75 in)', premium: 0 },
+          { label: 'Wide (3.25 in)', premium: 5 },
+        ],
+      },
+      {
+        name: 'Buttonhole',
+        options: [
+          { label: 'No Lapel Buttonhole', premium: 0 },
+          { label: 'With Lapel Buttonhole', premium: 0 },
+          { label: 'Contrast Thread Buttonhole', premium: 5 },
+        ],
+      },
+      {
+        name: 'Pockets',
+        options: [
+          { label: 'Flap Pockets', premium: 0 },
+          { label: 'Slanted Flap Pockets', premium: 5 },
+          { label: 'Double Pipe (No Flap)', premium: 0 },
+          { label: 'Flap + Ticket Pocket', premium: 10 },
+        ],
+      },
+      {
+        name: 'Sleeve Buttons',
+        options: [
+          { label: '3 Kissing Buttons', premium: 0 },
+          { label: '4 Kissing Buttons', premium: 0 },
+          { label: '4 Working Buttonholes', premium: 12 },
+        ],
+      },
+      {
+        name: 'Vents',
+        options: [
+          { label: 'Single Center Vent', premium: 0 },
+          { label: 'Double Side Vents', premium: 10 },
+          { label: 'No Vent', premium: 0 },
+        ],
+      },
+      {
+        name: 'Fit',
+        options: [
+          { label: 'Slim Fit', premium: 0 },
+          { label: 'Tailored Fit', premium: 0 },
+          { label: 'Classic Regular Fit', premium: 0 },
+        ],
+      },
     ],
   },
   {

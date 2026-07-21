@@ -1,4 +1,4 @@
-import { Routes, Route, Link } from 'react-router-dom';
+import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import CategoryPage from './pages/CategoryPage';
@@ -12,31 +12,90 @@ import RequireAdmin from './components/layout/RequireAdmin';
 import { useAuthStore } from './store/authStore';
 
 function Layout({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const isConfigurator = location.pathname.startsWith('/configure');
+
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="flex items-center justify-between px-8 py-4 border-b border-navy-100">
-        <Link to="/" className="flex items-center gap-3">
-          <img src="/logo.jpeg" alt="Novaterra Apparel" className="h-10 w-10 rounded-full" />
-          <span className="font-display text-xl tracking-wide text-navy-800">
-            NOVATERRA <span className="text-gold-500">APPAREL</span>
+    <div className="min-h-screen flex flex-col bg-itailor-dark text-itailor-cream">
+      {/* Top Announcement & Utilities Bar */}
+      <div className="bg-[#070D16] border-b border-itailor-cardBorder/40 px-6 py-1.5 flex justify-between items-center text-xs text-itailor-cream/70">
+        <div className="flex items-center gap-4">
+          <span className="text-itailor-gold font-medium">NOVATERRA LUXURY CUSTOM TAILORING</span>
+          <span className="hidden sm:inline text-itailor-cream/40">•</span>
+          <span className="hidden sm:inline">Crafted to your exact measurements</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1 cursor-pointer hover:text-itailor-gold transition-colors">
+            🌐 LANGUAGE: <strong className="text-itailor-gold">EN</strong>
           </span>
+          <span className="flex items-center gap-1 cursor-pointer hover:text-itailor-gold transition-colors">
+            💵 CURRENCY: <strong className="text-itailor-gold">USD ($)</strong>
+          </span>
+        </div>
+      </div>
+
+      {/* Main Luxury Navigation Bar */}
+      <header className="sticky top-0 z-50 bg-itailor-sidebar/95 backdrop-blur-md border-b border-itailor-cardBorder px-6 py-3 flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-3 group">
+          <img src="/logo.jpeg" alt="Novaterra Apparel" className="h-9 w-9 rounded-full ring-2 ring-itailor-gold/50 group-hover:ring-itailor-gold transition-all" />
+          <div className="flex flex-col">
+            <span className="font-display text-lg tracking-widest text-itailor-cream font-bold leading-none">
+              NOVATERRA <span className="text-itailor-gold font-normal">TAILOR</span>
+            </span>
+            <span className="text-[10px] tracking-wider text-itailor-gold/70 uppercase mt-0.5">Bespoke Custom Apparel</span>
+          </div>
         </Link>
-        <nav className="flex flex-wrap gap-x-5 gap-y-1 text-sm font-medium text-navy-600 items-center max-w-2xl justify-end">
-          <Link to="/shirt">Shirts</Link>
-          <Link to="/suit">Suits</Link>
-          <Link to="/jacket">Jackets</Link>
-          <Link to="/vest">Vests</Link>
-          <Link to="/pants">Pants</Link>
-          <Link to="/jeans">Jeans</Link>
-          <Link to="/tuxedo">Tuxedos</Link>
-          <Link to="/overcoat">Overcoats</Link>
-          <Link to="/tie">Ties</Link>
-          <Link to="/womens">Women's</Link>
-          <Link to="/cart">Cart</Link>
-          <AccountLink />
+
+        {/* Categories Navbar */}
+        <nav className="hidden lg:flex items-center gap-1 text-xs uppercase font-semibold tracking-wider text-itailor-cream/80">
+          <Link to="/suit" className="px-3 py-1.5 rounded hover:text-itailor-gold hover:bg-itailor-card transition-colors">
+            SUITS
+          </Link>
+          <Link to="/tuxedo" className="px-3 py-1.5 rounded hover:text-itailor-gold hover:bg-itailor-card transition-colors">
+            3-PIECE SUITS
+          </Link>
+          <Link to="/shirt" className="px-3 py-1.5 rounded hover:text-itailor-gold hover:bg-itailor-card transition-colors">
+            SHIRTS
+          </Link>
+          <Link to="/jacket" className="px-3 py-1.5 rounded hover:text-itailor-gold hover:bg-itailor-card transition-colors">
+            JACKETS
+          </Link>
+          <Link to="/vest" className="px-3 py-1.5 rounded hover:text-itailor-gold hover:bg-itailor-card transition-colors">
+            VESTS
+          </Link>
+          <Link to="/pants" className="px-3 py-1.5 rounded hover:text-itailor-gold hover:bg-itailor-card transition-colors">
+            PANTS
+          </Link>
+          <Link to="/jeans" className="px-3 py-1.5 rounded hover:text-itailor-gold hover:bg-itailor-card transition-colors">
+            DENIM
+          </Link>
+          <Link to="/tie" className="px-3 py-1.5 rounded hover:text-itailor-gold hover:bg-itailor-card transition-colors">
+            TIES
+          </Link>
         </nav>
+
+        {/* Right User & Cart Links */}
+        <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wider">
+          <AccountLink />
+          <Link
+            to="/cart"
+            className="flex items-center gap-2 bg-itailor-gold/10 border border-itailor-gold/40 text-itailor-gold px-3 py-1.5 rounded-md hover:bg-itailor-gold hover:text-itailor-dark transition-all"
+          >
+            <span>🛒 CART</span>
+          </Link>
+        </div>
       </header>
-      <main className="flex-1">{children}</main>
+
+      {/* Main Content Area */}
+      <main className={`flex-1 ${isConfigurator ? 'p-0' : ''}`}>{children}</main>
+
+      {/* Luxury Footer (only on non-configurator views or subtle bottom bar) */}
+      {!isConfigurator && (
+        <footer className="bg-[#070D16] border-t border-itailor-cardBorder py-8 px-6 text-center text-xs text-itailor-cream/50">
+          <p className="font-display text-sm text-itailor-gold mb-2">NOVATERRA APPAREL — BESPOKE CUSTOM TAILORING</p>
+          <p>© {new Date().getFullYear()} Novaterra Apparel. Inspired by luxury custom suit craft.</p>
+        </footer>
+      )}
     </div>
   );
 }
@@ -44,15 +103,18 @@ function Layout({ children }: { children: React.ReactNode }) {
 function AccountLink() {
   const user = useAuthStore((s) => s.user);
   return (
-    <>
+    <div className="flex items-center gap-3">
       {user?.role === 'admin' && (
         <>
-          <Link to="/admin/orders">Admin: Orders</Link>
-          <Link to="/admin/products">Admin: Products</Link>
+          <Link to="/admin/orders" className="hover:text-itailor-gold transition-colors text-itailor-gold">
+            Admin Orders
+          </Link>
         </>
       )}
-      <Link to="/login">{user ? user.email : 'Sign in'}</Link>
-    </>
+      <Link to="/login" className="hover:text-itailor-gold transition-colors">
+        {user ? user.email.split('@')[0] : 'Sign In'}
+      </Link>
+    </div>
   );
 }
 
@@ -75,3 +137,4 @@ export default function App() {
     </Layout>
   );
 }
+

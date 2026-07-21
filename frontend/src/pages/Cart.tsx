@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { getCart, removeCartItem, checkout, Cart as CartType } from '../api/orderApi';
 
 export default function Cart() {
@@ -37,45 +37,76 @@ export default function Cart() {
     }
   }
 
-  if (error) return <p className="px-8 py-12 text-red-600">{error}</p>;
-  if (!cart) return <p className="px-8 py-12 text-navy-400">Loading…</p>;
+  if (error) return <div className="max-w-3xl mx-auto px-6 py-12 text-red-400">{error}</div>;
+  if (!cart) return <div className="max-w-3xl mx-auto px-6 py-20 text-center text-itailor-gold font-display text-lg">Loading Cart…</div>;
 
   return (
-    <section className="px-8 py-12 max-w-2xl">
-      <h1 className="font-display text-3xl text-navy-800 mb-8">Cart</h1>
+    <div className="max-w-3xl mx-auto px-6 py-12 flex flex-col gap-8">
+      <div className="border-b border-itailor-cardBorder pb-4 flex justify-between items-end">
+        <div>
+          <h1 className="font-display text-3xl font-bold text-itailor-gold uppercase tracking-wide">
+            Your Custom Shopping Bag
+          </h1>
+          <p className="text-xs text-itailor-cream/60 mt-1">Tailored items saved for order placement</p>
+        </div>
+        <span className="text-xs text-itailor-cream/50 uppercase tracking-widest">{cart.items.length} Items</span>
+      </div>
+
       {cart.items.length === 0 ? (
-        <p className="text-navy-400">Your cart is empty.</p>
+        <div className="py-20 text-center flex flex-col items-center gap-4">
+          <p className="text-itailor-cream/50 text-base">Your custom shopping bag is empty.</p>
+          <Link
+            to="/suit"
+            className="bg-itailor-cyan hover:bg-itailor-cyanHover text-white font-extrabold text-xs uppercase tracking-widest px-6 py-3 rounded-lg shadow-lg transition-all"
+          >
+            START CUSTOMIZING NOW ✂️
+          </Link>
+        </div>
       ) : (
         <>
-          <ul className="space-y-4 mb-8">
+          <ul className="space-y-4">
             {cart.items.map((item) => (
-              <li key={item.id} className="flex justify-between items-center border border-navy-100 rounded p-4">
+              <li
+                key={item.id}
+                className="flex justify-between items-center border border-itailor-cardBorder bg-itailor-card/50 rounded-2xl p-6 shadow-xl"
+              >
                 <div>
-                  <p className="font-medium text-navy-800">{item.productName}</p>
-                  <p className="text-sm text-navy-400">Qty {item.quantity}</p>
+                  <h3 className="font-display text-lg font-bold text-itailor-cream">{item.productName}</h3>
+                  <p className="text-xs text-itailor-gold uppercase mt-1">Quantity: {item.quantity}</p>
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-gold-600 font-medium">${item.unitPrice.toFixed(2)}</span>
-                  <button onClick={() => handleRemove(item.id)} className="text-sm text-navy-400 hover:text-red-600">
+
+                <div className="flex items-center gap-6">
+                  <span className="font-mono text-lg font-bold text-itailor-gold">${item.unitPrice.toFixed(2)}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(item.id)}
+                    className="text-xs text-itailor-cream/40 hover:text-itailor-red transition-colors"
+                  >
                     Remove
                   </button>
                 </div>
               </li>
             ))}
           </ul>
-          <p className="flex justify-between font-display text-xl text-navy-800 border-t border-navy-100 pt-4 mb-6">
-            <span>Total</span>
-            <span>${cart.total.toFixed(2)}</span>
-          </p>
-          <button
-            onClick={handleCheckout}
-            disabled={placing}
-            className="bg-navy-800 text-white rounded px-6 py-2 hover:bg-navy-700 disabled:opacity-50"
-          >
-            {placing ? 'Placing order…' : 'Checkout'}
-          </button>
+
+          <div className="border-t border-itailor-cardBorder pt-6 flex flex-col gap-6">
+            <div className="flex justify-between items-baseline">
+              <span className="font-display text-xl font-bold text-itailor-cream uppercase">TOTAL AMOUNT:</span>
+              <span className="font-display text-3xl font-bold text-itailor-gold">${cart.total.toFixed(2)}</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCheckout}
+              disabled={placing}
+              className="w-full bg-itailor-cyan hover:bg-itailor-cyanHover text-white font-extrabold text-xs uppercase tracking-widest py-4 rounded-xl shadow-xl shadow-itailor-cyan/20 transition-all transform active:scale-95 disabled:opacity-50"
+            >
+              {placing ? 'Placing Order…' : 'PROCEED TO CHECKOUT 🔒'}
+            </button>
+          </div>
         </>
       )}
-    </section>
+    </div>
   );
 }
+
