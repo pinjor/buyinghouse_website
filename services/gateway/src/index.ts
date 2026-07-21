@@ -15,7 +15,20 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 // Express strips the app.use() mount path from req.url before the proxy sees it,
 // so pathRewrite only needs to handle what's left *after* the mount prefix.
 app.use('/api/auth', createProxyMiddleware({ target: AUTH_URL, changeOrigin: true }));
-app.use('/api/catalog', createProxyMiddleware({ target: CATALOG_URL, changeOrigin: true }));
+app.use(
+  '/api/catalog',
+  // catalog-service's own admin routes live at /admin/*; block them here so this
+  // unauthenticated public mount can't be used to reach them (e.g. a request to
+  // /api/catalog/admin/products would otherwise forward straight through as
+  // /admin/products with no auth check at all).
+  (req, res, next) => {
+    if (req.path === '/admin' || req.path.startsWith('/admin/')) {
+      return res.status(404).json({ error: 'not found' });
+    }
+    next();
+  },
+  createProxyMiddleware({ target: CATALOG_URL, changeOrigin: true }),
+);
 app.use(
   '/api/admin/catalog',
   requireAuth,

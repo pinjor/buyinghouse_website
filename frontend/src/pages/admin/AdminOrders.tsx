@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getAdminOrders, advanceOrderStatus, AdminOrder } from '../../api/adminApi';
 
 const NEXT_STATUS: Record<string, string | null> = {
+  pending_payment: 'placed',
   placed: 'in_production',
   in_production: 'shipped',
   shipped: 'delivered',

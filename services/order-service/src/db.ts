@@ -31,13 +31,18 @@ export async function migrate() {
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id UUID NOT NULL,
       user_email TEXT,
-      status TEXT NOT NULL DEFAULT 'placed'
-        CHECK (status IN ('placed', 'in_production', 'shipped', 'delivered')),
+      status TEXT NOT NULL DEFAULT 'pending_payment'
+        CHECK (status IN ('pending_payment', 'placed', 'in_production', 'shipped', 'delivered')),
       total NUMERIC(10,2) NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_email TEXT;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method TEXT;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_intent_id TEXT;
+    ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_check;
+    ALTER TABLE orders ADD CONSTRAINT orders_status_check
+      CHECK (status IN ('pending_payment', 'placed', 'in_production', 'shipped', 'delivered'));
 
     CREATE TABLE IF NOT EXISTS order_items (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

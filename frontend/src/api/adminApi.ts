@@ -6,6 +6,7 @@ export interface AdminOrder {
   userEmail: string | null;
   status: string;
   total: number;
+  paymentMethod: string | null;
   createdAt: string;
 }
 

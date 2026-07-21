@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
 import { z } from 'zod';
 import { pool, migrate, seedIfEmpty } from './db.js';
@@ -6,6 +6,14 @@ import { pool, migrate, seedIfEmpty } from './db.js';
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Defense in depth: the gateway is expected to gate /admin/* behind auth +
+// role checks before proxying here, but this service must not rely on that
+// alone — verify the role header itself in case it's ever reached directly.
+function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (req.headers['x-user-role'] !== 'admin') return res.status(403).json({ error: 'admin access required' });
+  next();
+}
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
@@ -81,7 +89,7 @@ const createProductSchema = z.object({
   basePrice: z.number().nonnegative(),
 });
 
-app.post('/admin/products', async (req, res) => {
+app.post('/admin/products', requireAdmin, async (req, res) => {
   const parsed = createProductSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const { category, name, basePrice } = parsed.data;
@@ -98,7 +106,7 @@ const updateProductSchema = z.object({
   basePrice: z.number().nonnegative().optional(),
 });
 
-app.patch('/admin/products/:id', async (req, res) => {
+app.patch('/admin/products/:id', requireAdmin, async (req, res) => {
   const parsed = updateProductSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const { name, basePrice } = parsed.data;
@@ -122,7 +130,7 @@ const fabricSchema = z.object({
   supplierRef: z.string().min(1),
 });
 
-app.post('/admin/products/:id/fabrics', async (req, res) => {
+app.post('/admin/products/:id/fabrics', requireAdmin, async (req, res) => {
   const parsed = fabricSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const productRes = await pool.query('SELECT id FROM products WHERE id = $1', [req.params.id]);
@@ -146,7 +154,7 @@ app.post('/admin/products/:id/fabrics', async (req, res) => {
 
 const styleGroupSchema = z.object({ name: z.string().min(1) });
 
-app.post('/admin/products/:id/style-groups', async (req, res) => {
+app.post('/admin/products/:id/style-groups', requireAdmin, async (req, res) => {
   const parsed = styleGroupSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const productRes = await pool.query('SELECT id FROM products WHERE id = $1', [req.params.id]);
@@ -164,7 +172,7 @@ const styleOptionSchema = z.object({
   pricePremium: z.number().nonnegative().default(0),
 });
 
-app.post('/admin/style-groups/:id/options', async (req, res) => {
+app.post('/admin/style-groups/:id/options', requireAdmin, async (req, res) => {
   const parsed = styleOptionSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const groupRes = await pool.query('SELECT id FROM style_groups WHERE id = $1', [req.params.id]);

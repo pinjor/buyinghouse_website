@@ -1,7 +1,16 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET ?? 'dev-access-secret';
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    console.error(`missing required env var ${name} — refusing to start with a known/default JWT secret`);
+    process.exit(1);
+  }
+  return value;
+}
+
+const ACCESS_SECRET = requireEnv('JWT_ACCESS_SECRET');
 
 interface AccessPayload {
   sub: string;

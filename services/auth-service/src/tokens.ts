@@ -1,7 +1,16 @@
 import jwt from 'jsonwebtoken';
 
-const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET ?? 'dev-access-secret';
-const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET ?? 'dev-refresh-secret';
+const ACCESS_SECRET = requireEnv('JWT_ACCESS_SECRET');
+const REFRESH_SECRET = requireEnv('JWT_REFRESH_SECRET');
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    console.error(`missing required env var ${name} — refusing to start with a known/default JWT secret`);
+    process.exit(1);
+  }
+  return value;
+}
 
 export interface TokenPayload {
   sub: string;

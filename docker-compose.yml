@@ -30,8 +30,8 @@ services:
     build: ./services/auth-service
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/auth
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-access-secret}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET in .env — no default is provided}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env — no default is provided}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     depends_on: [ postgres ]
@@ -48,6 +48,8 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/orders
       CATALOG_SERVICE_URL: http://catalog-service:4002
       RABBITMQ_URL: amqp://rabbitmq:5672
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
     depends_on: [ postgres, rabbitmq, catalog-service ]
 
   notification-service:
@@ -68,11 +70,14 @@ services:
       AUTH_SERVICE_URL: http://auth-service:4001
       CATALOG_SERVICE_URL: http://catalog-service:4002
       ORDER_SERVICE_URL: http://order-service:4003
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-access-secret}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET in .env — no default is provided}
     depends_on: [ postgres, auth-service, catalog-service, order-service ]
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_STRIPE_PUBLISHABLE_KEY: ${VITE_STRIPE_PUBLISHABLE_KEY:-}
     ports: [ "3002:80" ]
     depends_on: [ gateway ]
 

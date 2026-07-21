@@ -21,8 +21,10 @@ export interface Order {
   id: string;
   status: string;
   total: number;
+  paymentMethod?: string;
   items: CartItem[];
   createdAt: string;
+  clientSecret?: string | null;
 }
 
 function authHeaders(): HeadersInit {
@@ -62,8 +64,16 @@ export function removeCartItem(itemId: string): Promise<Cart> {
   }).then((r) => handle(r));
 }
 
-export function checkout(): Promise<Order> {
+export function checkout(paymentMethod: 'stripe' | 'wire'): Promise<Order> {
   return fetch('/api/orders/checkout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ paymentMethod }),
+  }).then((r) => handle(r));
+}
+
+export function confirmStripePayment(orderId: string): Promise<{ id: string; status: string }> {
+  return fetch(`/api/orders/checkout/${orderId}/confirm`, {
     method: 'POST',
     headers: authHeaders(),
   }).then((r) => handle(r));

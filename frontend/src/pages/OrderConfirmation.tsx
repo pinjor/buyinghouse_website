@@ -6,6 +6,7 @@ interface OrderDetail {
   id: string;
   status: string;
   total: number;
+  paymentMethod?: string;
   createdAt: string;
 }
 
@@ -25,10 +26,18 @@ export default function OrderConfirmation() {
 
   return (
     <section className="px-8 py-12 max-w-xl">
-      <h1 className="font-display text-3xl text-navy-800 mb-4">Order placed</h1>
+      <h1 className="font-display text-3xl text-navy-800 mb-4">
+        {order.status === 'pending_payment' ? 'Order received' : 'Order placed'}
+      </h1>
       <p className="text-navy-600 mb-2">Order ID: {order.id}</p>
-      <p className="text-navy-600 mb-2">Status: {order.status}</p>
-      <p className="text-gold-600 font-display text-xl">${order.total.toFixed(2)}</p>
+      <p className="text-navy-600 mb-2">Status: {order.status.replace('_', ' ')}</p>
+      <p className="text-gold-600 font-display text-xl mb-2">${order.total.toFixed(2)}</p>
+      {order.status === 'pending_payment' && order.paymentMethod === 'wire' && (
+        <p className="text-navy-500 text-sm">
+          A commercial invoice with bank wire details will be emailed to you. Production begins once payment is
+          confirmed.
+        </p>
+      )}
     </section>
   );
 }

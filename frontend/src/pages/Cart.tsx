@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { getCart, removeCartItem, checkout, Cart as CartType } from '../api/orderApi';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { getCart, removeCartItem, checkout, confirmStripePayment, Cart as CartType } from '../api/orderApi';
+
+const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
+const stripePromise = STRIPE_PUBLISHABLE_KEY ? loadStripe(STRIPE_PUBLISHABLE_KEY) : null;
+
+type PaymentMethod = 'stripe' | 'paypal' | 'wire';
 
 export default function Cart() {
   const [cart, setCart] = useState<CartType | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'paypal' | 'invoice'>('stripe');
-  
-  // Form State for Credit Card
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvc, setCardCvc] = useState('');
-  const [cardName, setCardName] = useState('');
-
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(stripePromise ? 'stripe' : 'wire');
   const navigate = useNavigate();
 
   function refresh() {
@@ -32,14 +32,14 @@ export default function Cart() {
     }
   }
 
-  async function handleCheckout() {
+  async function handleWireCheckout() {
     setPlacing(true);
     setError(null);
     try {
-      const order = await checkout();
+      const order = await checkout('wire');
       navigate(`/orders/${order.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Checkout & Payment failed');
+      setError(err instanceof Error ? err.message : 'Checkout failed');
     } finally {
       setPlacing(false);
     }
@@ -113,8 +113,9 @@ export default function Cart() {
                 {/* Stripe Card Option */}
                 <button
                   type="button"
+                  disabled={!stripePromise}
                   onClick={() => setPaymentMethod('stripe')}
-                  className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all ${
+                  className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                     paymentMethod === 'stripe'
                       ? 'border-itailor-gold bg-itailor-card ring-2 ring-itailor-gold/50 shadow-xl'
                       : 'border-itailor-cardBorder bg-itailor-card/40 hover:border-itailor-gold/40'
@@ -122,30 +123,27 @@ export default function Cart() {
                 >
                   <span className="text-xl">💳</span>
                   <span className="text-xs font-bold text-itailor-cream">Credit Card</span>
-                  <span className="text-[9px] text-itailor-gold font-mono">Stripe SSL</span>
+                  <span className="text-[9px] text-itailor-gold font-mono">{stripePromise ? 'Stripe SSL' : 'Unavailable'}</span>
                 </button>
 
-                {/* PayPal Option */}
+                {/* PayPal Option — not yet integrated with a real payment processor */}
                 <button
                   type="button"
-                  onClick={() => setPaymentMethod('paypal')}
-                  className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all ${
-                    paymentMethod === 'paypal'
-                      ? 'border-itailor-gold bg-itailor-card ring-2 ring-itailor-gold/50 shadow-xl'
-                      : 'border-itailor-cardBorder bg-itailor-card/40 hover:border-itailor-gold/40'
-                  }`}
+                  disabled
+                  title="PayPal checkout is not yet available"
+                  className="p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all border-itailor-cardBorder bg-itailor-card/40 opacity-40 cursor-not-allowed"
                 >
                   <span className="text-xl">🅿️</span>
                   <span className="text-xs font-bold text-itailor-cream">PayPal</span>
-                  <span className="text-[9px] text-itailor-gold font-mono">Express Checkout</span>
+                  <span className="text-[9px] text-itailor-gold font-mono">Coming Soon</span>
                 </button>
 
                 {/* B2B Wire / Commercial Invoice Option */}
                 <button
                   type="button"
-                  onClick={() => setPaymentMethod('invoice')}
+                  onClick={() => setPaymentMethod('wire')}
                   className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all ${
-                    paymentMethod === 'invoice'
+                    paymentMethod === 'wire'
                       ? 'border-itailor-gold bg-itailor-card ring-2 ring-itailor-gold/50 shadow-xl'
                       : 'border-itailor-cardBorder bg-itailor-card/40 hover:border-itailor-gold/40'
                   }`}
@@ -156,80 +154,14 @@ export default function Cart() {
                 </button>
               </div>
 
-              {/* Stripe Payment Input Form */}
-              {paymentMethod === 'stripe' && (
-                <div className="p-4 rounded-xl border border-itailor-cardBorder bg-[#070D16] flex flex-col gap-3 shadow-inner">
-                  <div className="flex justify-between items-center text-xs text-itailor-cream/70">
-                    <span>Visa / Mastercard / AMEX / Apple Pay</span>
-                    <span className="text-[10px] text-itailor-gold font-mono">🔒 256-bit SSL Encrypted</span>
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-bold text-itailor-cream/70 uppercase">Cardholder Name</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. John Doe"
-                      value={cardName}
-                      onChange={(e) => setCardName(e.target.value)}
-                      className="bg-itailor-card border border-itailor-cardBorder rounded px-3 py-1.5 text-xs text-itailor-cream focus:border-itailor-gold focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-bold text-itailor-cream/70 uppercase">Card Number</label>
-                    <input
-                      type="text"
-                      maxLength={19}
-                      placeholder="4532 •••• •••• 8921"
-                      value={cardNumber}
-                      onChange={(e) => setCardNumber(e.target.value)}
-                      className="bg-itailor-card border border-itailor-cardBorder rounded px-3 py-1.5 text-xs text-itailor-gold font-mono focus:border-itailor-gold focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] font-bold text-itailor-cream/70 uppercase">Expiry Date</label>
-                      <input
-                        type="text"
-                        maxLength={5}
-                        placeholder="MM / YY"
-                        value={cardExpiry}
-                        onChange={(e) => setCardExpiry(e.target.value)}
-                        className="bg-itailor-card border border-itailor-cardBorder rounded px-3 py-1.5 text-xs text-itailor-cream font-mono focus:border-itailor-gold focus:outline-none"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] font-bold text-itailor-cream/70 uppercase">CVC / CVV</label>
-                      <input
-                        type="text"
-                        maxLength={4}
-                        placeholder="123"
-                        value={cardCvc}
-                        onChange={(e) => setCardCvc(e.target.value)}
-                        className="bg-itailor-card border border-itailor-cardBorder rounded px-3 py-1.5 text-xs text-itailor-cream font-mono focus:border-itailor-gold focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* PayPal Express Banner */}
-              {paymentMethod === 'paypal' && (
-                <div className="p-4 rounded-xl border border-itailor-cardBorder bg-[#070D16] text-center flex flex-col items-center gap-2">
-                  <p className="text-xs text-itailor-cream/80">
-                    You will be redirected to PayPal Express to securely complete your payment.
-                  </p>
-                  <span className="text-sm font-bold text-itailor-gold">PayPal Buyer Protection Included</span>
-                </div>
-              )}
-
-              {/* Invoice Banner */}
-              {paymentMethod === 'invoice' && (
+              {/* Wire Invoice Banner */}
+              {paymentMethod === 'wire' && (
                 <div className="p-4 rounded-xl border border-itailor-cardBorder bg-[#070D16] flex flex-col gap-1.5 text-xs">
                   <p className="font-bold text-itailor-gold">B2B Commercial Pro Forma Invoice</p>
                   <p className="text-itailor-cream/70 text-[11px]">
-                    An official commercial invoice with bank wire details (SWIFT / IBAN) will be generated and emailed for corporate procurement.
+                    Your order is placed on hold pending wire transfer. An official commercial invoice with bank wire
+                    details (SWIFT / IBAN) will be emailed to you, and production begins once payment is confirmed by
+                    our team.
                   </p>
                 </div>
               )}
@@ -265,20 +197,22 @@ export default function Cart() {
                 <span className="font-display text-2xl font-bold text-itailor-gold">${cart.total.toFixed(2)}</span>
               </div>
 
-              <button
-                type="button"
-                onClick={handleCheckout}
-                disabled={placing}
-                className="w-full bg-itailor-cyan hover:bg-itailor-cyanHover text-white font-extrabold text-xs uppercase tracking-widest py-3.5 rounded-xl shadow-xl shadow-itailor-cyan/20 transition-all transform active:scale-95 disabled:opacity-50"
-              >
-                {placing
-                  ? 'Processing Payment…'
-                  : paymentMethod === 'stripe'
-                  ? `PAY $${cart.total.toFixed(2)} WITH STRIPE 🔒`
-                  : paymentMethod === 'paypal'
-                  ? 'PAY WITH PAYPAL 🅿️'
-                  : 'CONFIRM & GENERATE INVOICE 📄'}
-              </button>
+              {error && <p className="text-xs text-red-400">{error}</p>}
+
+              {paymentMethod === 'stripe' && stripePromise ? (
+                <Elements stripe={stripePromise}>
+                  <StripeCheckoutForm total={cart.total} placing={placing} setPlacing={setPlacing} setError={setError} />
+                </Elements>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleWireCheckout}
+                  disabled={placing}
+                  className="w-full bg-itailor-cyan hover:bg-itailor-cyanHover text-white font-extrabold text-xs uppercase tracking-widest py-3.5 rounded-xl shadow-xl shadow-itailor-cyan/20 transition-all transform active:scale-95 disabled:opacity-50"
+                >
+                  {placing ? 'Processing…' : 'CONFIRM & GENERATE INVOICE 📄'}
+                </button>
+              )}
 
               <div className="text-center text-[10px] text-itailor-cream/40 flex items-center justify-center gap-2">
                 <span>🔒 256-Bit Encryption</span>
@@ -293,4 +227,76 @@ export default function Cart() {
   );
 }
 
+function StripeCheckoutForm({
+  total,
+  placing,
+  setPlacing,
+  setError,
+}: {
+  total: number;
+  placing: boolean;
+  setPlacing: (v: boolean) => void;
+  setError: (v: string | null) => void;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const navigate = useNavigate();
 
+  async function handlePay() {
+    if (!stripe || !elements) return;
+    setPlacing(true);
+    setError(null);
+    try {
+      const order = await checkout('stripe');
+      if (!order.clientSecret) throw new Error('payment could not be initialized');
+
+      const cardElement = elements.getElement(CardElement);
+      if (!cardElement) throw new Error('card details are required');
+
+      const result = await stripe.confirmCardPayment(order.clientSecret, {
+        payment_method: { card: cardElement },
+      });
+
+      if (result.error) throw new Error(result.error.message ?? 'payment failed');
+      if (result.paymentIntent?.status !== 'succeeded') throw new Error('payment was not completed');
+
+      await confirmStripePayment(order.id);
+      navigate(`/orders/${order.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Checkout & Payment failed');
+    } finally {
+      setPlacing(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="p-4 rounded-xl border border-itailor-cardBorder bg-[#070D16] shadow-inner">
+        <div className="flex justify-between items-center text-xs text-itailor-cream/70 mb-3">
+          <span>Visa / Mastercard / AMEX</span>
+          <span className="text-[10px] text-itailor-gold font-mono">🔒 256-bit SSL Encrypted</span>
+        </div>
+        <CardElement
+          options={{
+            style: {
+              base: {
+                color: '#F5F1E6',
+                fontSize: '13px',
+                '::placeholder': { color: '#8a8578' },
+              },
+            },
+          }}
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={handlePay}
+        disabled={placing || !stripe}
+        className="w-full bg-itailor-cyan hover:bg-itailor-cyanHover text-white font-extrabold text-xs uppercase tracking-widest py-3.5 rounded-xl shadow-xl shadow-itailor-cyan/20 transition-all transform active:scale-95 disabled:opacity-50"
+      >
+        {placing ? 'Processing Payment…' : `PAY $${total.toFixed(2)} WITH STRIPE 🔒`}
+      </button>
+    </div>
+  );
+}
